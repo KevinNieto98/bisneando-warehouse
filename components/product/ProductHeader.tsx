@@ -3,7 +3,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
-import { CartButton } from "../ui/CartButttom";
 
 type ProductHeaderProps = {
   showCartButton?: boolean;   // default: true
@@ -38,7 +37,6 @@ export function ProductHeader({
         <Ionicons name="arrow-back" size={24} color="#000" />
       </TouchableOpacity>
 
-      {showCartButton && <CartButton count={count} />}
     </View>
   );
 }

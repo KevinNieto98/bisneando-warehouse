@@ -1,12 +1,7 @@
-import { CategorySkeleton } from "@/components";
-import { CarouselBanner, Portada } from "@/components/CarouselBanner";
-import CategorySection from "@/components/CategoySection";
-import { ProductSimilares } from "@/components/ProductSimilares";
+import { Portada } from "@/components/CarouselBanner";
 
-import { CartButton } from "@/components/ui/CartButttom";
 import Icono from "@/components/ui/Icon.native";
 import { InternetError } from "@/components/ui/InternetError";
-import { ProductSkeleton } from "@/components/ui/ProductSkeleton";
 import Title from "@/components/ui/Title.native";
 import useAuth from "@/hooks/useAuth";
 import { fetchActivePortadas } from "@/services/api";
@@ -21,55 +16,10 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-// =========================================================================
-// Mock de la barra de búsqueda
-// =========================================================================
-const SearchInputMock = () => {
-  const handlePress = () => {
-    router.push("/explore");
-  };
-
-  return (
-    <TouchableOpacity
-      style={mockStyles.searchContainer}
-      onPress={handlePress}
-      activeOpacity={0.8}
-    >
-      <Icono name="Search" size={18} color="#71717a" />
-      <Text style={mockStyles.searchText}>Buscar productos...</Text>
-    </TouchableOpacity>
-  );
-};
-
-const mockStyles = StyleSheet.create({
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 15,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  searchText: {
-    marginLeft: 8,
-    color: "#71717a",
-    fontSize: 15,
-  },
-});
-// =========================================================================
 
 export default function HomeScreen() {
   const {
@@ -213,20 +163,8 @@ export default function HomeScreen() {
               <Icono name="Bell" size={22} color="#27272a" />
             </TouchableOpacity>
           )}
-          <CartButton count={totalItems} />
         </View>
       </View>
-          {/* 1. Buscador */}
-          <SearchInputMock />
-
-          {/* 2. Banner / Portadas */}
-          <View style={styles.bannerWrapper}>
-            <CarouselBanner
-              portadas={portadas}
-              loading={loadingPortadas}
-              onPressPortada={handlePressPortada}
-            />
-          </View>
 
       {/* Contenido blanco con bordes redondeados y todo lo demás dentro del ScrollView */}
       <View style={styles.content}>
@@ -250,27 +188,11 @@ export default function HomeScreen() {
             <View style={styles.paddedContentSection}>
               {/* Categorías */}
               <Title
-                icon={<Icono name="Tags" size={20} color="#52525b" />}
-                title="Categorías"
-              />
-              {loadingCategories ? (
-                <CategorySkeleton />
-              ) : (
-                <CategorySection categories={categories} />
-              )}
-
-              {/* Productos Destacados */}
-              <Title
-                icon={<Icono name="Star" size={20} color="#52525b" />}
-                title="Productos Destacados"
-                style={{ marginTop: 16 }}
+                icon={<Icono name="ClipboardList" size={20} color="#52525b" />}
+                title="Pendientes por procesar"
               />
 
-              {loadingProducts ? (
-                <ProductSkeleton count={3} />
-              ) : (
-                <ProductSimilares products={productsInStock} />
-              )}
+              
             </View>
           )}
         </ScrollView>

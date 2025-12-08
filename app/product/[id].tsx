@@ -5,13 +5,12 @@ import { ProductDescription } from "@/components/product/ProductDescription";
 import { ProductGridSimilares } from "@/components/product/ProductGridSimilares";
 import { ProductHeader } from "@/components/product/ProductHeader";
 import { ProductInfo } from "@/components/product/ProductInfo";
-import { ProductPriceBox } from "@/components/product/ProductPriceBox";
 import SuccessToast from "@/components/ui/SuccessToast";
 import { fetchProductoById } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import { useCartStore } from "@/store/useCartStore";
 import * as Haptics from "expo-haptics";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { FlatList, StatusBar, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -129,14 +128,7 @@ export default function ProductScreen() {
     );
   }
 
-  // Helper para mapear al carrito
-  const mapProductoToCart = (p: ProductAPI) => ({
-    id: Number(p.id_producto),
-    title: p.nombre_producto,
-    price: Number(p.precio),
-    images: p.imagenes ?? [],
-    inStock: Number(p.qty ?? 0) || undefined,
-  });
+
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -170,30 +162,7 @@ export default function ProductScreen() {
               onShare={() => {}}
             />
 
-            <ProductPriceBox
-              precio={Number(producto.precio)}
-              qty={stock}
-              onAdd={() => {
-                if (cantidad > stock || stock <= 0) return;
 
-                if (!existsInCart) {
-                  addToCart(mapProductoToCart(producto), cantidad);
-                }
-                triggerAddedToast();
-              }}
-              onBuy={() => {
-                if (cantidad > stock || stock <= 0) return;
-
-                if (!existsInCart) {
-                  addToCart(mapProductoToCart(producto), cantidad);
-                } else {
-                  // Por seguridad, al comprar fija exacto lo que está en el contador
-                  setQtyStore(idNum, clampByStock(cantidad, stock));
-                }
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-                router.push("/cart");
-              }}
-            />
 
             <ProductDescription descripcion={producto.descripcion ?? ""} />
 

@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { Searchbar } from "react-native-paper";
 import { Product } from "../ProductSlideItem";
-import { CartButton } from "../ui/CartButttom"; // *** IMPORTAR CartButton ***
 
 interface Props {
   products: Product[];
@@ -95,8 +94,6 @@ export const Search: React.FC<Props> = ({
           onClearIconPress={handleClear}   // X
         />
 
-        {/* *** AÑADIR BOTÓN DEL CARRITO *** */}
-        <CartButton count={totalItems} /> 
       </View>
 
       {/* 🔍 Mensaje flotante (solo cuando NO hay resultados o faltan caracteres) */}

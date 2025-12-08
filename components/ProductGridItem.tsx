@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
@@ -27,7 +26,7 @@ interface Props {
 
 const { width } = Dimensions.get("window");
 const CARD_MARGIN = 8;
-const CARD_WIDTH = (width - CARD_MARGIN * 2 * 3 - 32) / 3;
+const CARD_WIDTH = (width - CARD_MARGIN * 2 * 3 -28) / 3;
 
 export const ProductGridItem: React.FC<Props> = ({
   product,
@@ -92,30 +91,7 @@ export const ProductGridItem: React.FC<Props> = ({
           </Text>
         </View>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.cartButton,
-            isOutOfStock && styles.cartButtonDisabled,
-            pressed && !isOutOfStock && { opacity: 0.7 },
-          ]}
-          onPress={handleCartPress}
-        >
-          <Ionicons
-            name="cart-outline"
-            size={12}
-            color={isOutOfStock ? "#9ca3af" : "white"}
-          />
-          <Text
-            style={[
-              styles.cartText,
-              isOutOfStock && styles.cartTextDisabled,
-            ]}
-          >
-            +
-          </Text>
-        </Pressable>
 
-        <View style={styles.bottomSpacer} />
       </View>
     </Pressable>
   );
@@ -129,7 +105,7 @@ const styles = StyleSheet.create({
     borderColor: "#e5e7eb",
     overflow: "hidden",
     width: CARD_WIDTH,
-    height: 180,
+    height: 150,
     margin: CARD_MARGIN,
   },
   // 👇 estado "grisado" visualmente

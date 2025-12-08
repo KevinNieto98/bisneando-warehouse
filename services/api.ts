@@ -230,7 +230,7 @@ export async function loginRequestApp(
   try {
     const res = await apiFetch<LoginResponse>("/api/login", {
       method: "POST",
-      body: { email, password, platform: "APP" },
+      body: { email, password, platform: "BODEGA" },
     });
     console.log('res:', res);
     

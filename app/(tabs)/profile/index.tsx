@@ -1,6 +1,5 @@
 // (tabs)/profile/index.tsx
 import ConfirmModal from "@/components/ui/ConfirmModal";
-import Icono from "@/components/ui/Icon.native";
 import useAuth from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase";
@@ -136,20 +135,6 @@ export default function AccountScreen() {
             <Text style={styles.menuText}>Editar Perfil</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/address")}>
-            <Ionicons name="location-outline" size={22} color="#27272a" />
-            <Text style={styles.menuText}>Mis direcciones</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/orders")}>
-            <Icono name="Tag" size={22} color="#27272a" />
-            <Text style={styles.menuText}>Mis pedidos</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/legal_information")}>
-            <Ionicons name="document-text-outline" size={22} color="#27272a" />
-            <Text style={styles.menuText}>Información legal</Text>
-          </TouchableOpacity>
 
           <View style={styles.separator} />
 

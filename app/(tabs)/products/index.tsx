@@ -150,7 +150,7 @@ export default function ExploreScreen() {
         key={searchResetKey}
         products={filteredProducts}
         onSelect={handleSelectProduct}
-        onBack={() => router.push("/home")}
+        onBack={() => router.push("/orders")}
         onSubmitSearch={({ query, results }) => {
           if (!query || query.trim().length < 3) {
             setSearchResults(null);
