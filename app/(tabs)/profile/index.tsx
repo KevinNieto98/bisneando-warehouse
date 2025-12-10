@@ -47,7 +47,7 @@ export default function AccountScreen() {
       setShowSuccess(true);
       const t = setTimeout(() => {
         setShowSuccess(false);
-        router.replace("/(tabs)/profile"); // limpia el query param
+        router.replace("/(tabs)/orders"); // limpia el query param
       }, 2500);
       return () => clearTimeout(t);
     }

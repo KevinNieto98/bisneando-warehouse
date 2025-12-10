@@ -1,14 +1,9 @@
-import { Portada } from "@/components/CarouselBanner";
-
 import Icono from "@/components/ui/Icon.native";
-import { InternetError } from "@/components/ui/InternetError";
 import Title from "@/components/ui/Title.native";
 import useAuth from "@/hooks/useAuth";
-import { fetchActivePortadas } from "@/services/api";
-import { useAppStore } from "@/store/useAppStore";
-import { useCartStore } from "@/store/useCartStore";
+import { fetchOrdersHeadByUid } from "@/services/api";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Image,
   Platform,
@@ -16,127 +11,214 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function HomeScreen() {
-  const {
-    categories,
-    loadingCategories,
-    products,
-    loadingProducts,
-    loadCategories,
-    loadProducts,
-  } = useAppStore();
+/* =========================
+   Tipos y helpers de Órdenes
+   ========================= */
 
-  const { user } = useAuth();
-  const totalItems = useCartStore((s) => s.totalItems());
+type OrderHead = {
+  id_order: number;
+  uid: string;
+  total: number;
+  qty_items: number;
+  status: string | null;
+  id_status: number | null;
+  fecha_creacion: string | null;
+};
 
-  // Estados
-  const [refreshing, setRefreshing] = useState(false);
-  const [networkError, setNetworkError] = useState(false);
-  const [networkErrorMessage, setNetworkErrorMessage] = useState(
-    "No pudimos cargar la información. Revisa tu conexión a internet."
+function formatOrderCode(id: number, width = 5, prefix = "ORD-") {
+  if (!Number.isFinite(id) || id <= 0) return `${prefix}00000`;
+  return `${prefix}${String(id).padStart(width, "0")}`;
+}
+
+function formatCreationDate(iso?: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  try {
+    return d.toLocaleString("es-HN");
+  } catch {
+    return d.toLocaleString();
+  }
+}
+
+/* =========================
+   Skeleton de item de orden
+   ========================= */
+
+const SkeletonOrderItem = () => {
+  return (
+    <View style={styles.skeletonItem}>
+      <View style={styles.skeletonRow}>
+        <View style={[styles.skeletonBox, { width: 110, height: 14 }]} />
+        <View style={[styles.skeletonBox, { width: 70, height: 14 }]} />
+      </View>
+
+      <View
+        style={[
+          styles.skeletonBox,
+          { width: "60%", height: 12, marginTop: 10 },
+        ]}
+      />
+
+      <View
+        style={[
+          styles.skeletonBox,
+          { width: "40%", height: 12, marginTop: 10 },
+        ]}
+      />
+    </View>
   );
+};
 
-  // Portadas
-  const [portadas, setPortadas] = useState<Portada[]>([]);
-  const [loadingPortadas, setLoadingPortadas] = useState(true);
+type TabKey = "progreso" | "finalizadas";
+const PAGE_SIZE_FINALIZED = 10;
 
-  const loadPortadasFromApi = async () => {
-    setLoadingPortadas(true);
+export default function OrdersScreen() {
+  const { user } = useAuth();
+
+  // Órdenes
+  const [orders, setOrders] = useState<OrderHead[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+
+  // Tabs / paginación
+  const [activeTab, setActiveTab] = useState<TabKey>("progreso");
+  const [finalizedPage, setFinalizedPage] = useState(1);
+
+  // Pull to refresh
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadOrdersForUser = async (uid?: string | null) => {
+    setLoadingOrders(true);
+    setOrdersError(null);
+
     try {
-      const rawData = await fetchActivePortadas();
-      console.log("Portadas crudas desde API:", rawData);
-
-      const mapped: Portada[] = (rawData ?? []).map((p: any) => ({
-        id_portada: p.id_portada,
-        url_imagen: p.url_imagen,
-        link_destino: p.link ?? null,
-        activo: p.is_active,
-        metadatos: {
-          fecha_creacion: p.fecha_creacion,
-          fecha_modificacion: p.fecha_modificacion,
-          usuario_crea: p.usuario_crea,
-          usuario_modificacion: p.usuario_modificacion,
-        },
-      }));
-
-      setPortadas(mapped);
-
-      if (mapped.length > 0) {
-        console.log("Ejemplo portada mapeada:", mapped[0]);
+      if (!uid) {
+        setOrders([]);
+        setFinalizedPage(1);
+        return;
       }
-    } catch (err) {
-      console.error("Error cargando portadas:", err);
-      setPortadas([]);
+
+      const data = await fetchOrdersHeadByUid(uid);
+      const rows = (data ?? []) as any[];
+
+      const mapped = rows.map((d) => ({
+        id_order: d.id_order,
+        uid: d.uid,
+        total: d.total ?? 0,
+        qty_items: d.qty_items ?? d.qty ?? d.items_count ?? 0,
+        status: d.status ?? null,
+        id_status: d.id_status ?? null,
+        fecha_creacion: d.fecha_creacion ?? null,
+      })) as OrderHead[];
+
+      setOrders(mapped);
+      setFinalizedPage(1);
+    } catch (err: any) {
+      console.error("Error cargando órdenes:", err);
+      setOrdersError(err?.message ?? "Error al cargar órdenes");
     } finally {
-      setLoadingPortadas(false);
+      setLoadingOrders(false);
     }
   };
 
-  // Cargar todo al inicio
+  // Cargar al inicio cuando cambia el usuario
   useEffect(() => {
-    const loadInitial = async () => {
-      setNetworkError(false);
-      try {
-        await Promise.all([
-          loadCategories(),
-          loadProducts(),
-          loadPortadasFromApi(),
-        ]);
-      } catch (error: any) {
-        if (error?.isNetworkError) {
-          setNetworkError(true);
-          if (error?.message) setNetworkErrorMessage(error.message);
-        }
-      }
-    };
-
-    loadInitial();
-  }, []);
+    loadOrdersForUser(user?.id ?? null);
+  }, [user?.id]);
 
   // Pull To Refresh
   const onRefresh = async () => {
     setRefreshing(true);
-    setNetworkError(false);
     try {
-      await Promise.all([
-        loadCategories(),
-        loadProducts(),
-        loadPortadasFromApi(),
-      ]);
-    } catch (error: any) {
-      if (error?.isNetworkError) {
-        setNetworkError(true);
-        if (error?.message) setNetworkErrorMessage(error.message);
-      }
+      await loadOrdersForUser(user?.id ?? null);
     } finally {
       setRefreshing(false);
     }
   };
 
-  const noDataLoaded =
-    !loadingCategories &&
-    !loadingProducts &&
-    !loadingPortadas &&
-    categories.length === 0 &&
-    products.length === 0 &&
-    portadas.length === 0;
+  // =========================
+  // Lógica de órdenes
+  // =========================
 
-  const showInternetError = networkError || noDataLoaded;
+  const sortByFechaCreacionDesc = (a: OrderHead, b: OrderHead) => {
+    const ta = a.fecha_creacion ? new Date(a.fecha_creacion).getTime() : 0;
+    const tb = b.fecha_creacion ? new Date(b.fecha_creacion).getTime() : 0;
+    return tb - ta;
+  };
 
-  const productsInStock = products.filter((p: any) => (p.qty ?? 0) > 0);
+  const inProgressOrders = useMemo(
+    () =>
+      orders
+        .filter((o) => {
+          const s = o.id_status ?? 0;
+          return s >= 1 && s <= 5;
+        })
+        .sort(sortByFechaCreacionDesc),
+    [orders]
+  );
 
-  const handlePressPortada = (portada: Portada) => {
-    console.log("Portada clickeada:", portada.id_portada);
-    console.log("Navegando hacia:", portada.link_destino);
+  const finalizedOrders = useMemo(
+    () =>
+      orders
+        .filter((o) => {
+          const s = o.id_status ?? 0;
+          return s === 6 || s === 7;
+        })
+        .sort(sortByFechaCreacionDesc),
+    [orders]
+  );
 
-    if (!portada.link_destino) return;
+  const visibleOrders =
+    activeTab === "progreso"
+      ? inProgressOrders
+      : finalizedOrders.slice(0, finalizedPage * PAGE_SIZE_FINALIZED);
 
-    router.push(portada.link_destino as any);
+  const canLoadMoreFinalized =
+    activeTab === "finalizadas" &&
+    finalizedOrders.length > visibleOrders.length;
+
+  const renderOrderItem = (item: OrderHead) => {
+    const code = formatOrderCode(item.id_order);
+    const fecha = formatCreationDate(item.fecha_creacion);
+
+    return (
+      <TouchableOpacity
+        key={item.id_order}
+        style={styles.orderItem}
+        activeOpacity={0.7}
+        onPress={() => router.push(`/orders/${item.id_order}` as any)}
+      >
+        <View style={styles.orderRowTop}>
+          <Text style={styles.orderId}>{code}</Text>
+          <Text style={styles.orderTotal}>
+            L. {Number(item.total ?? 0).toFixed(2)}
+          </Text>
+        </View>
+
+        <View style={styles.orderRowMiddle}>
+          <Text style={styles.orderColonia}>
+            {item.qty_items === 1
+              ? "1 artículo"
+              : `${item.qty_items} artículos`}
+          </Text>
+          {!!fecha && <Text style={styles.orderDate}>{fecha}</Text>}
+        </View>
+
+        <View style={styles.orderRowBottom}>
+          <Text style={styles.orderStatusText}>
+            {item.status ?? "Sin estado"}
+          </Text>
+          <Icono name="ChevronRight" size={18} color="#9ca3af" />
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   // ======================================================================
@@ -177,24 +259,122 @@ export default function HomeScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-
-          {/* 3. Contenido principal */}
-          {showInternetError ? (
-            <InternetError
-              message={networkErrorMessage}
-              onRetry={onRefresh}
+          <View style={styles.paddedContentSection}>
+            {/* Título de sección de órdenes */}
+            <Title
+              icon={<Icono name="ClipboardList" size={20} color="#52525b" />}
+              title="Pendientes por procesar"
             />
-          ) : (
-            <View style={styles.paddedContentSection}>
-              {/* Categorías */}
-              <Title
-                icon={<Icono name="ClipboardList" size={20} color="#52525b" />}
-                title="Pendientes por procesar"
-              />
 
-              
+            {/* Tabs En progreso / Finalizadas */}
+            <View style={styles.tabsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.tabButton,
+                  activeTab === "progreso" && styles.tabButtonActive,
+                ]}
+                onPress={() => setActiveTab("progreso")}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    activeTab === "progreso" && styles.tabLabelActive,
+                  ]}
+                >
+                  En progreso
+                </Text>
+                <View style={styles.tabBadge}>
+                  <Text
+                    style={[
+                      styles.tabBadgeText,
+                      activeTab === "progreso" && styles.tabBadgeTextActive,
+                    ]}
+                  >
+                    {inProgressOrders.length}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.tabButton,
+                  activeTab === "finalizadas" && styles.tabButtonActive,
+                ]}
+                onPress={() => setActiveTab("finalizadas")}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    activeTab === "finalizadas" && styles.tabLabelActive,
+                  ]}
+                >
+                  Finalizadas
+                </Text>
+                <View style={styles.tabBadge}>
+                  <Text
+                    style={[
+                      styles.tabBadgeText,
+                      activeTab === "finalizadas" &&
+                        styles.tabBadgeTextActive,
+                    ]}
+                  >
+                    {finalizedOrders.length}
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
-          )}
+
+            {/* Contenido de órdenes */}
+            {loadingOrders ? (
+              <View style={{ paddingTop: 4 }}>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <SkeletonOrderItem key={i} />
+                ))}
+              </View>
+            ) : ordersError ? (
+              <View style={styles.centerWrapper}>
+                <Text style={styles.errorText}>{ordersError}</Text>
+              </View>
+            ) : orders.length === 0 ? (
+              <View style={styles.centerWrapper}>
+                <Text style={styles.emptyText}>
+                  Aún no tienes órdenes registradas.
+                </Text>
+              </View>
+            ) : visibleOrders.length === 0 ? (
+              <View style={styles.centerWrapper}>
+                <Text style={styles.emptyText}>
+                  {activeTab === "progreso"
+                    ? "No tienes órdenes en progreso."
+                    : "No tienes órdenes finalizadas."}
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.listContent}>
+                  {visibleOrders.map(renderOrderItem)}
+                </View>
+
+                {canLoadMoreFinalized && (
+                  <View style={styles.footerMoreWrapper}>
+                    <TouchableOpacity
+                      style={styles.moreButton}
+                      activeOpacity={0.8}
+                      onPress={() =>
+                        setFinalizedPage((prev) => prev + 1)
+                      }
+                    >
+                      <Text style={styles.moreButtonText}>
+                        Ver más órdenes
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -206,7 +386,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFD600", // Fondo general amarillo
+    backgroundColor: "#FFD600",
   },
   header: {
     flexDirection: "row",
@@ -214,7 +394,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: "#FFD600",
     paddingHorizontal: 16,
-    // Ajuste de altura/padding para iOS/Android sin altura fija
     ...Platform.select({
       ios: {
         paddingTop: 8,
@@ -251,11 +430,153 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     overflow: "hidden",
   },
-  bannerWrapper: {
-    paddingBottom: 12,
-    paddingHorizontal: 8,
-  },
   paddedContentSection: {
     paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+
+  centerWrapper: {
+    paddingVertical: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#dc2626",
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+  },
+
+  listContent: {
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  orderItem: {
+    backgroundColor: "#f9fafb",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  orderRowTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  orderId: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  orderTotal: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  orderRowMiddle: {
+    marginBottom: 6,
+  },
+  orderColonia: {
+    fontSize: 13,
+    color: "#4b5563",
+  },
+  orderDate: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginTop: 2,
+  },
+  orderRowBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  orderStatusText: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+
+  // Skeleton
+  skeletonItem: {
+    backgroundColor: "#f9fafb",
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  skeletonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  skeletonBox: {
+    backgroundColor: "#e5e7eb",
+    borderRadius: 8,
+  },
+
+  // Tabs
+  tabsContainer: {
+    flexDirection: "row",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 9999,
+    padding: 4,
+    marginTop: 12,
+    marginBottom: 12,
+    alignSelf: "center",
+  },
+  tabButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 9999,
+  },
+  tabButtonActive: {
+    backgroundColor: "#111827",
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#6b7280",
+  },
+  tabLabelActive: {
+    color: "#f9fafb",
+  },
+  tabBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 9999,
+    backgroundColor: "rgba(31,41,55,0.08)",
+  },
+  tabBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  tabBadgeTextActive: {
+    color: "#e5e7eb",
+  },
+
+  footerMoreWrapper: {
+    paddingTop: 8,
+    paddingBottom: 16,
+    alignItems: "center",
+  },
+  moreButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 9999,
+    backgroundColor: "#111827",
+  },
+  moreButtonText: {
+    color: "#f9fafb",
+    fontSize: 13,
+    fontWeight: "500",
   },
 });

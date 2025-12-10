@@ -45,16 +45,9 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="product" options={{ headerShown: false }} />
-          <Stack.Screen name="checkout" options={{ headerShown: false }} />
-          <Stack.Screen name="success" options={{ headerShown: false }} />
           <Stack.Screen name="notifications" options={{ headerShown: false }} />
-          <Stack.Screen name="address" options={{ headerShown: false }} />
-          <Stack.Screen name="new_address" options={{ headerShown: false }} />
           <Stack.Screen name="edit_profile" options={{ headerShown: false }} />
-          <Stack.Screen name="orders" options={{ headerShown: false }} />
-          <Stack.Screen name="set_address" options={{ headerShown: false }} />
-          <Stack.Screen name="legal_information" options={{ headerShown: false }} />
-          <Stack.Screen name="+not-found" />
+
         </Stack>
         {/* Evita duplicar StatusBar: ya tienes una arriba */}
         {/* <StatusBar style="auto" /> */}
