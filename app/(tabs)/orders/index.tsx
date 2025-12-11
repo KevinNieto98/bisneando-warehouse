@@ -1,6 +1,7 @@
 import Icono from "@/components/ui/Icon.native";
 import Title from "@/components/ui/Title.native";
 import useAuth from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { fetchOrdersHeadByUid } from "@/services/api";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -82,6 +83,14 @@ const PAGE_SIZE_FINALIZED = 10;
 export default function OrdersScreen() {
   const { user } = useAuth();
 
+    // Redirigir si no hay sesión
+useEffect(() => {
+      if (!user) {
+        router.replace("/(auth)/login");
+      }
+    }, [ user]);
+  
+
   // Órdenes
   const [orders, setOrders] = useState<OrderHead[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -93,6 +102,10 @@ export default function OrdersScreen() {
 
   // Pull to refresh
   const [refreshing, setRefreshing] = useState(false);
+  const { profile, } = useProfile(user?.id);
+  
+  console.log('profile:',profile);
+  
 
   const loadOrdersForUser = async (uid?: string | null) => {
     setLoadingOrders(true);

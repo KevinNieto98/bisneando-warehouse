@@ -9,6 +9,7 @@ export type AppProfile = {
   email: string | null;
   phone: string | null;
   id_perfil: number | null;
+  id_bodega: number | null;
   avatar_url?: string | null;
   updated_at?: string | null;
   dni?: string | null;
@@ -33,7 +34,7 @@ export function useProfile(userId?: string) {
 
     const { data, error, status } = await supabase
       .from("tbl_usuarios")
-      .select("id, nombre, apellido, email, phone, id_perfil, updated_at,dni, phone_verified")
+      .select("id, nombre, apellido, email, phone, id_perfil, updated_at,dni, phone_verified,id_bodega")
       .eq("id", userId)
       .maybeSingle(); // 👈 NO lanza error si no hay fila; data = null
 
