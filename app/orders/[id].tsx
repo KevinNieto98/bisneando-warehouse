@@ -101,7 +101,6 @@ export default function OrderDetailScreen() {
         setLoadError(null);
 
         const data = await fetchOrderById(numericId);
-        console.log("[ORDER_DETAIL] data", data);
 
         if (!data) {
           setLoadError("No se encontró información para esta orden.");
@@ -134,10 +133,9 @@ export default function OrderDetailScreen() {
 
   // 👇 Manejar back según de dónde vino (SOLO se usa en back del header y HW back)
   const handleBack = useCallback(() => {
-    console.log("[ORDER_DETAIL] handleBack, cameFromSuccess:", cameFromSuccess);
 
     if (cameFromSuccess) {
-      router.replace("/(tabs)/home");
+      router.replace("/(tabs)/orders");
     } else {
       // viene de orders (lista) → back normal
       router.back();

@@ -29,16 +29,14 @@ const CategorySection: React.FC<Props> = ({ categories }) => {
     if (isNavigating.current) return;
     isNavigating.current = true;
     
-    // Deberías ver este log si el onPressIn se dispara
-    console.log("GO TO EXPLORE ->", categoryId); 
 
     // Usamos un setTimeout mínimo (50ms) para diferir la navegación.
     // Esto evita que iOS lo confunda con un gesto de scroll al salir del componente.
     setTimeout(() => {
         if (categoryId != null) {
-            router.push(`/explore?categoryId=${categoryId}`);
+            router.push(`/products?categoryId=${categoryId}`);
         } else {
-            router.push("/explore");
+            router.push("/products");
         }
         
         // Resetear el estado después de una breve pausa

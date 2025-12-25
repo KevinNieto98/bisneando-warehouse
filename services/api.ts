@@ -12,10 +12,7 @@ type ApiOptions = {
 
 // 👇 Helper para loguear errores de forma más limpia (sin warnings/errores en consola)
 function logApiError(scope: string, error: any) {
-  // Si en algún momento quieres loguear en desarrollo:
-  // if (__DEV__) {
-  //   console.log(`[${scope}]`, error?.message ?? error);
-  // }
+
 }
 
 // Helper para devolver un valor vacío genérico y no romper tipos
@@ -124,16 +121,7 @@ export async function fetchCategorias() {
   }
 }
 
-export async function fetchActivePortadas() {
-  try {
-    const res = await apiFetch<any[]>("/api/portadas");
-    console.log('res', res);
-    
-    return Array.isArray(res) ? res : [];
-  } catch {
-    return [];
-  }
-}
+
 
 export async function fetchProductosDestacados() {
   try {
@@ -236,7 +224,6 @@ export async function loginRequestApp(
       body: { email, password, platform: "BODEGA" },
     });
 
-    console.log("res:", res);
 
     // Si tu API dice "ok" pero no trae tokens, no podemos hidratar sesión
     if (!res?.success) return res;
@@ -261,7 +248,7 @@ export async function loginRequestApp(
     });
 
     if (error) {
-      console.log("supabase.auth.setSession error:", error.message);
+
       return {
         success: false,
         message: `No se pudo persistir la sesión en el cliente: ${error.message}`,
@@ -271,7 +258,6 @@ export async function loginRequestApp(
     // (Opcional) Verificación rápida para debug
     // Si esto devuelve null, tu supabase client no está persistiendo correctamente (AsyncStorage)
     const snap = await supabase.auth.getSession();
-    console.log("session after setSession:", !!snap.data.session);
 
     // Si quieres, puedes alinear el user retornado con data.session.user
     // pero no es obligatorio
@@ -980,5 +966,54 @@ export async function fetchOrderById(
 
     logApiError("Error fetchOrderById", error);
     return null;
+  }
+}
+
+
+
+export type OrderHeadByBodegaApi = {
+  id_bodega: number | null;
+  id_order: number;
+  cantidad: number | null;
+  total: number | null;
+  uid: string | null;
+  fecha_creacion: string | null;
+  id_status: number | null;
+  status: string | null;
+  nombre_usuario: string | null;
+};
+
+type OrdersHeadByBodegaApiResponse = {
+  message: string;
+  reqId?: string;
+  data: OrderHeadByBodegaApi[];
+};
+
+export async function fetchOrdersHeadByBodega(
+  id_bodega: number,
+  token?: string
+): Promise<OrderHeadByBodegaApi[]> {
+  if (!Number.isFinite(id_bodega) || id_bodega <= 0) {
+    // id_bodega inválido -> devolvemos lista vacía
+    return [];
+  }
+
+  try {
+    const qs = new URLSearchParams({ id_bodega: String(id_bodega) }).toString();
+
+    const res = await apiFetch<OrdersHeadByBodegaApiResponse>(
+      `/api/orders/by-bodega?${qs}`,
+      {
+        method: "GET",
+        headers: {
+          ...withAuthHeader(token),
+        },
+      }
+    );
+
+    return Array.isArray(res?.data) ? res.data : [];
+  } catch (error: any) {
+    logApiError("Error fetchOrdersHeadByBodega", error);
+    return [];
   }
 }

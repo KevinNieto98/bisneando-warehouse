@@ -2,7 +2,7 @@ import Icono from "@/components/ui/Icon.native";
 import Title from "@/components/ui/Title.native";
 import useAuth from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import { fetchOrdersHeadByUid } from "@/services/api";
+import { fetchOrdersHeadByBodega } from "@/services/api";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -19,23 +19,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 /* =========================
-   Tipos y helpers de Órdenes
+   Helpers
    ========================= */
-
-type OrderHead = {
-  id_order: number;
-  uid: string;
-  total: number;
-  qty_items: number;
-  status: string | null;
-  id_status: number | null;
-  fecha_creacion: string | null;
-};
-
-function formatOrderCode(id: number, width = 5, prefix = "ORD-") {
-  if (!Number.isFinite(id) || id <= 0) return `${prefix}00000`;
-  return `${prefix}${String(id).padStart(width, "0")}`;
-}
 
 function formatCreationDate(iso?: string | null) {
   if (!iso) return "";
@@ -48,33 +33,44 @@ function formatCreationDate(iso?: string | null) {
   }
 }
 
+function getStatusBadge(id_status: number | null, status: string | null) {
+  // 🔴 Rechazada
+  if (id_status === 6) {
+    return { text: status ?? "Rechazada", bg: "#fee2e2", color: "#b91c1c" };
+  }
+
+  // 🟢 Completada
+  if (id_status === 5) {
+    return { text: status ?? "Completada", bg: "#dcfce7", color: "#15803d" };
+  }
+
+  // 🟠 En progreso (id_status = 2)
+  if (id_status === 2) {
+    return { text: status ?? "En progreso", bg: "#ffedd5", color: "#c2410c" };
+  }
+
+  // ⚪ Default
+  return {
+    text: status ?? "Sin estado",
+    bg: "#e5e7eb",
+    color: "#374151",
+  };
+}
+
 /* =========================
-   Skeleton de item de orden
+   Tipos (vista VW_ORDERS_HEAD)
    ========================= */
 
-const SkeletonOrderItem = () => {
-  return (
-    <View style={styles.skeletonItem}>
-      <View style={styles.skeletonRow}>
-        <View style={[styles.skeletonBox, { width: 110, height: 14 }]} />
-        <View style={[styles.skeletonBox, { width: 70, height: 14 }]} />
-      </View>
-
-      <View
-        style={[
-          styles.skeletonBox,
-          { width: "60%", height: 12, marginTop: 10 },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.skeletonBox,
-          { width: "40%", height: 12, marginTop: 10 },
-        ]}
-      />
-    </View>
-  );
+type BodegaOrder = {
+  id_bodega: number | null;
+  id_order: number;
+  cantidad: number | null;
+  total: number | null;
+  uid: string | null;
+  fecha_creacion: string | null;
+  id_status: number | null;
+  status: string | null;
+  nombre_usuario: string | null;
 };
 
 type TabKey = "progreso" | "finalizadas";
@@ -82,17 +78,17 @@ const PAGE_SIZE_FINALIZED = 10;
 
 export default function OrdersScreen() {
   const { user, loading } = useAuth();
+  const { profile } = useProfile(user?.id);
 
-  console.log('user:',user);
-  
-useEffect(() => {
-  if (!loading && !user) {
-    router.replace("/(auth)/login");
-  }
-}, [loading, user]);
+  // Redirigir si no hay sesión (esperando hidratación)
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/(auth)/login");
+    }
+  }, [loading, user]);
 
-  // Órdenes
-  const [orders, setOrders] = useState<OrderHead[]>([]);
+  // Data
+  const [orders, setOrders] = useState<BodegaOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
@@ -102,89 +98,57 @@ useEffect(() => {
 
   // Pull to refresh
   const [refreshing, setRefreshing] = useState(false);
-  const { profile, } = useProfile(user?.id);
-  
-  console.log('profile:',profile);
-  
 
-  const loadOrdersForUser = async (uid?: string | null) => {
+  const loadOrdersForBodega = async (idBodega?: number | null) => {
     setLoadingOrders(true);
     setOrdersError(null);
 
     try {
-      if (!uid) {
+      if (!idBodega || !Number.isFinite(idBodega)) {
         setOrders([]);
         setFinalizedPage(1);
         return;
       }
 
-      const data = await fetchOrdersHeadByUid(uid);
-      const rows = (data ?? []) as any[];
-
-      const mapped = rows.map((d) => ({
-        id_order: d.id_order,
-        uid: d.uid,
-        total: d.total ?? 0,
-        qty_items: d.qty_items ?? d.qty ?? d.items_count ?? 0,
-        status: d.status ?? null,
-        id_status: d.id_status ?? null,
-        fecha_creacion: d.fecha_creacion ?? null,
-      })) as OrderHead[];
-
-      setOrders(mapped);
+      const data = await fetchOrdersHeadByBodega(Number(idBodega));
+      setOrders(Array.isArray(data) ? (data as BodegaOrder[]) : []);
       setFinalizedPage(1);
     } catch (err: any) {
-      console.error("Error cargando órdenes:", err);
+      console.error("Error cargando órdenes por bodega:", err);
       setOrdersError(err?.message ?? "Error al cargar órdenes");
     } finally {
       setLoadingOrders(false);
     }
   };
 
-  // Cargar al inicio cuando cambia el usuario
+  // Cargar cuando haya id_bodega
   useEffect(() => {
-    loadOrdersForUser(user?.id ?? null);
-  }, [user?.id]);
+    loadOrdersForBodega(profile?.id_bodega ?? null);
+  }, [profile?.id_bodega]);
 
   // Pull To Refresh
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await loadOrdersForUser(user?.id ?? null);
+      await loadOrdersForBodega(profile?.id_bodega ?? null);
     } finally {
       setRefreshing(false);
     }
   };
 
   // =========================
-  // Lógica de órdenes
+  // ✅ Clasificación correcta:
+  // En Progreso => id_status === 2
+  // Finalizadas => todas las demás
   // =========================
 
-  const sortByFechaCreacionDesc = (a: OrderHead, b: OrderHead) => {
-    const ta = a.fecha_creacion ? new Date(a.fecha_creacion).getTime() : 0;
-    const tb = b.fecha_creacion ? new Date(b.fecha_creacion).getTime() : 0;
-    return tb - ta;
-  };
-
   const inProgressOrders = useMemo(
-    () =>
-      orders
-        .filter((o) => {
-          const s = o.id_status ?? 0;
-          return s >= 1 && s <= 5;
-        })
-        .sort(sortByFechaCreacionDesc),
+    () => orders.filter((o) => o.id_status === 2),
     [orders]
   );
 
   const finalizedOrders = useMemo(
-    () =>
-      orders
-        .filter((o) => {
-          const s = o.id_status ?? 0;
-          return s === 6 || s === 7;
-        })
-        .sort(sortByFechaCreacionDesc),
+    () => orders.filter((o) => o.id_status !== 2),
     [orders]
   );
 
@@ -197,37 +161,45 @@ useEffect(() => {
     activeTab === "finalizadas" &&
     finalizedOrders.length > visibleOrders.length;
 
-  const renderOrderItem = (item: OrderHead) => {
-    const code = formatOrderCode(item.id_order);
+  // =========================
+  // Tarjetita
+  // =========================
+  const renderBodegaOrderCard = (item: BodegaOrder) => {
     const fecha = formatCreationDate(item.fecha_creacion);
+    const cantidad = Number(item.cantidad ?? 0);
+    const total = Number(item.total ?? 0);
+    const badge = getStatusBadge(item.id_status, item.status);
 
     return (
       <TouchableOpacity
         key={item.id_order}
-        style={styles.orderItem}
-        activeOpacity={0.7}
+        style={styles.card}
+        activeOpacity={0.75}
         onPress={() => router.push(`/orders/${item.id_order}` as any)}
       >
-        <View style={styles.orderRowTop}>
-          <Text style={styles.orderId}>{code}</Text>
-          <Text style={styles.orderTotal}>
-            L. {Number(item.total ?? 0).toFixed(2)}
-          </Text>
+        <View style={styles.cardTop}>
+          <Text style={styles.cardTitle}>Orden #{item.id_order}</Text>
+          <Text style={styles.cardTotal}>L. {total.toFixed(2)}</Text>
         </View>
 
-        <View style={styles.orderRowMiddle}>
-          <Text style={styles.orderColonia}>
-            {item.qty_items === 1
-              ? "1 artículo"
-              : `${item.qty_items} artículos`}
+        <View style={styles.cardMid}>
+          <Text style={styles.cardMeta}>
+            Cantidad:{" "}
+            <Text style={styles.cardMetaStrong}>
+              {Number.isFinite(cantidad) ? cantidad : 0}
+            </Text>
           </Text>
-          {!!fecha && <Text style={styles.orderDate}>{fecha}</Text>}
+
+          {!!fecha && <Text style={styles.cardDate}>{fecha}</Text>}
         </View>
 
-        <View style={styles.orderRowBottom}>
-          <Text style={styles.orderStatusText}>
-            {item.status ?? "Sin estado"}
-          </Text>
+        <View style={styles.cardBottom}>
+          <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+            <Text style={[styles.statusBadgeText, { color: badge.color }]}>
+              {badge.text}
+            </Text>
+          </View>
+
           <Icono name="ChevronRight" size={18} color="#9ca3af" />
         </View>
       </TouchableOpacity>
@@ -241,7 +213,6 @@ useEffect(() => {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar backgroundColor="#FFD600" barStyle="dark-content" />
 
-      {/* Header fijo arriba sobre fondo amarillo */}
       <View style={styles.header}>
         <Image
           source={require("@/assets/images/bisneando.png")}
@@ -261,7 +232,6 @@ useEffect(() => {
         </View>
       </View>
 
-      {/* Contenido blanco con bordes redondeados y todo lo demás dentro del ScrollView */}
       <View style={styles.content}>
         <ScrollView
           contentContainerStyle={{ paddingBottom: 24 }}
@@ -273,13 +243,12 @@ useEffect(() => {
           }
         >
           <View style={styles.paddedContentSection}>
-            {/* Título de sección de órdenes */}
             <Title
               icon={<Icono name="ClipboardList" size={20} color="#52525b" />}
-              title="Pendientes por procesar"
+              title="Órdenes de la bodega"
             />
 
-            {/* Tabs En progreso / Finalizadas */}
+            {/* Tabs */}
             <View style={styles.tabsContainer}>
               <TouchableOpacity
                 style={[
@@ -329,8 +298,7 @@ useEffect(() => {
                   <Text
                     style={[
                       styles.tabBadgeText,
-                      activeTab === "finalizadas" &&
-                        styles.tabBadgeTextActive,
+                      activeTab === "finalizadas" && styles.tabBadgeTextActive,
                     ]}
                   >
                     {finalizedOrders.length}
@@ -339,12 +307,10 @@ useEffect(() => {
               </TouchableOpacity>
             </View>
 
-            {/* Contenido de órdenes */}
+            {/* Listado */}
             {loadingOrders ? (
-              <View style={{ paddingTop: 4 }}>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <SkeletonOrderItem key={i} />
-                ))}
+              <View style={styles.centerWrapper}>
+                <Text style={styles.emptyText}>Cargando órdenes...</Text>
               </View>
             ) : ordersError ? (
               <View style={styles.centerWrapper}>
@@ -353,21 +319,21 @@ useEffect(() => {
             ) : orders.length === 0 ? (
               <View style={styles.centerWrapper}>
                 <Text style={styles.emptyText}>
-                  Aún no tienes órdenes registradas.
+                  No hay órdenes para esta bodega.
                 </Text>
               </View>
             ) : visibleOrders.length === 0 ? (
               <View style={styles.centerWrapper}>
                 <Text style={styles.emptyText}>
                   {activeTab === "progreso"
-                    ? "No tienes órdenes en progreso."
-                    : "No tienes órdenes finalizadas."}
+                    ? "No hay órdenes en progreso (id_status = 2)."
+                    : "No hay órdenes finalizadas."}
                 </Text>
               </View>
             ) : (
               <>
                 <View style={styles.listContent}>
-                  {visibleOrders.map(renderOrderItem)}
+                  {visibleOrders.map(renderBodegaOrderCard)}
                 </View>
 
                 {canLoadMoreFinalized && (
@@ -375,13 +341,9 @@ useEffect(() => {
                     <TouchableOpacity
                       style={styles.moreButton}
                       activeOpacity={0.8}
-                      onPress={() =>
-                        setFinalizedPage((prev) => prev + 1)
-                      }
+                      onPress={() => setFinalizedPage((prev) => prev + 1)}
                     >
-                      <Text style={styles.moreButtonText}>
-                        Ver más órdenes
-                      </Text>
+                      <Text style={styles.moreButtonText}>Ver más órdenes</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -408,14 +370,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFD600",
     paddingHorizontal: 16,
     ...Platform.select({
-      ios: {
-        paddingTop: 8,
-        paddingBottom: 8,
-      },
-      android: {
-        paddingTop: 12,
-        paddingBottom: 8,
-      },
+      ios: { paddingTop: 8, paddingBottom: 8 },
+      android: { paddingTop: 12, paddingBottom: 8 },
     }),
   },
   logo: {
@@ -447,7 +403,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
   },
-
   centerWrapper: {
     paddingVertical: 24,
     alignItems: "center",
@@ -462,73 +417,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6b7280",
     textAlign: "center",
-  },
-
-  listContent: {
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  orderItem: {
-    backgroundColor: "#f9fafb",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  orderRowTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  orderId: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  orderTotal: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  orderRowMiddle: {
-    marginBottom: 6,
-  },
-  orderColonia: {
-    fontSize: 13,
-    color: "#4b5563",
-  },
-  orderDate: {
-    fontSize: 12,
-    color: "#9ca3af",
-    marginTop: 2,
-  },
-  orderRowBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  orderStatusText: {
-    fontSize: 12,
-    color: "#6b7280",
-  },
-
-  // Skeleton
-  skeletonItem: {
-    backgroundColor: "#f9fafb",
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  skeletonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  skeletonBox: {
-    backgroundColor: "#e5e7eb",
-    borderRadius: 8,
   },
 
   // Tabs
@@ -574,6 +462,68 @@ const styles = StyleSheet.create({
   },
   tabBadgeTextActive: {
     color: "#e5e7eb",
+  },
+
+  // List / Cards
+  listContent: {
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  card: {
+    backgroundColor: "#f9fafb",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  cardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    alignItems: "center",
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  cardTotal: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  cardMid: {
+    marginBottom: 8,
+  },
+  cardMeta: {
+    fontSize: 13,
+    color: "#4b5563",
+  },
+  cardMetaStrong: {
+    fontWeight: "700",
+    color: "#111827",
+  },
+  cardDate: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginTop: 4,
+  },
+  cardBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  // ✅ Badge status
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 9999,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
 
   footerMoreWrapper: {
