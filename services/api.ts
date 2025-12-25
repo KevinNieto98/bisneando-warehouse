@@ -208,19 +208,22 @@ export async function signupRequest(
   }
 }
 
-// --------- Login (solo APP) -------------------------------------------
-export type LoginResponse = {
+
+import { supabase } from "@/lib/supabase";
+
+type LoginResponse = {
   success: boolean;
-  message: string;
-  code?: string;
-  status?: number;
+  message?: string;
   tokens?: {
     access_token: string;
     refresh_token: string;
     expires_in?: number;
     token_type?: string;
   };
-  user?: { id: string; email: string | null };
+  user?: {
+    id: string;
+    email: string;
+  };
 };
 
 export async function loginRequestApp(
@@ -232,9 +235,53 @@ export async function loginRequestApp(
       method: "POST",
       body: { email, password, platform: "BODEGA" },
     });
-    console.log('res:', res);
-    
-    return res;
+
+    console.log("res:", res);
+
+    // Si tu API dice "ok" pero no trae tokens, no podemos hidratar sesión
+    if (!res?.success) return res;
+
+    const access_token = res?.tokens?.access_token;
+    const refresh_token = res?.tokens?.refresh_token;
+
+    if (!access_token || !refresh_token) {
+      return {
+        ...res,
+        success: false,
+        message:
+          res?.message ??
+          "Login exitoso, pero no se recibieron tokens para crear la sesión.",
+      };
+    }
+
+    // ✅ Hidratar sesión de Supabase en el CLIENTE usando tokens del backend
+    const { data, error } = await supabase.auth.setSession({
+      access_token,
+      refresh_token,
+    });
+
+    if (error) {
+      console.log("supabase.auth.setSession error:", error.message);
+      return {
+        success: false,
+        message: `No se pudo persistir la sesión en el cliente: ${error.message}`,
+      };
+    }
+
+    // (Opcional) Verificación rápida para debug
+    // Si esto devuelve null, tu supabase client no está persistiendo correctamente (AsyncStorage)
+    const snap = await supabase.auth.getSession();
+    console.log("session after setSession:", !!snap.data.session);
+
+    // Si quieres, puedes alinear el user retornado con data.session.user
+    // pero no es obligatorio
+    return {
+      ...res,
+      user: {
+        id: data.session?.user?.id ?? res.user?.id ?? "",
+        email: data.session?.user?.email ?? res.user?.email ?? email,
+      },
+    };
   } catch (error: any) {
     return {
       success: false,
@@ -242,6 +289,7 @@ export async function loginRequestApp(
     };
   }
 }
+
 
 // --------- Utilidad: Header de Autorización ----------------------------
 function withAuthHeader(token?: string): Record<string, string> {

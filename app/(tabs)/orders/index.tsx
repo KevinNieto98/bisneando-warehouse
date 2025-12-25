@@ -81,15 +81,15 @@ type TabKey = "progreso" | "finalizadas";
 const PAGE_SIZE_FINALIZED = 10;
 
 export default function OrdersScreen() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
-    // Redirigir si no hay sesión
-useEffect(() => {
-      if (!user) {
-        router.replace("/(auth)/login");
-      }
-    }, [ user]);
+  console.log('user:',user);
   
+useEffect(() => {
+  if (!loading && !user) {
+    router.replace("/(auth)/login");
+  }
+}, [loading, user]);
 
   // Órdenes
   const [orders, setOrders] = useState<OrderHead[]>([]);
