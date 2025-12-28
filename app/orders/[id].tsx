@@ -1,8 +1,9 @@
-import { fetchOrderById } from "@/services/api";
+import { useProfile } from "@/hooks/useProfile";
+import { fetchOrderById, fetchOrdersDetByBodega } from "@/services/api"; // ✅ agrega fetchOrdersDetByBodega
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -25,11 +26,12 @@ type OrderHeadApi = {
   metodo_pago: string | null;
   fecha_creacion: string;
   fecha_actualizacion: string | null | undefined;
-  id_status?: number | null; // 👈 importante para saber si es rechazada
+  id_status?: number | null;
 };
 
 type OrderDetailApi = {
   id_det: number;
+  id_order?: number;
   id_producto: number;
   qty: number;
   precio: number;
@@ -76,11 +78,13 @@ function formatDateTime(iso?: string | null) {
 export default function OrderDetailScreen() {
   const router = useRouter();
 
-  const { id, fromSuccess } = useLocalSearchParams<{
-    id?: string;
-    fromSuccess?: string;
-  }>();
+  const { profile } = useProfile();
 
+const { id, fromSuccess, id_bodega } = useLocalSearchParams<{
+  id?: string;
+  fromSuccess?: string;
+  id_bodega?: string;
+}>();
   const numericId = Number(id);
   const cameFromSuccess = fromSuccess === "1";
 
@@ -100,14 +104,39 @@ export default function OrderDetailScreen() {
         setLoading(true);
         setLoadError(null);
 
-        const data = await fetchOrderById(numericId);
+        const numericId = Number(id);
 
-        if (!data) {
+// 👇 NORMALIZACIÓN ÚNICA
+const idBodega: number | undefined =
+  id_bodega && Number.isFinite(Number(id_bodega)) && Number(id_bodega) > 0
+    ? Number(id_bodega)
+    : undefined;
+
+        // 1) Trae HEAD + ACTIVITY (tu endpoint actual)
+        const base = await fetchOrderById(numericId, undefined, idBodega  );
+
+        if (!base) {
           setLoadError("No se encontró información para esta orden.");
           setOrder(null);
-        } else {
-          setOrder(data as FullOrderByIdApi);
+          return;
         }
+
+        // 2) Trae DET desde el nuevo endpoint por bodega
+        //    - Si no hay id_bodega, regresamos det vacío (o podrías hacer otro endpoint "sin bodega")
+        const det =
+          id_bodega !== undefined
+            ? await fetchOrdersDetByBodega(numericId, Number(id_bodega), undefined)
+            : [];
+
+            console.log('idBodega', id_bodega);
+            console.log('det', det);
+            
+        // 3) Combinar en un solo objeto para la UI
+        setOrder({
+          head: (base as FullOrderByIdApi).head,
+          activity: (base as FullOrderByIdApi).activity ?? [],
+          det: (det as any) ?? [],
+        });
       } catch (e: any) {
         console.error("Error al cargar detalle de orden:", e);
         setLoadError(e?.message ?? "Error al cargar el detalle de la orden.");
@@ -117,39 +146,33 @@ export default function OrderDetailScreen() {
     };
 
     load();
-  }, [numericId]);
+  }, [numericId, profile?.id_bodega]);
 
   const orderCode = formatOrderCode(numericId);
 
-  // 👇 Derivados para la barra de estado
-  const isRejected =
-    !!order &&
-    ((order.head.id_status ?? 0) === 6 ||
-      (order.head.status ?? "").toLowerCase().includes("rechaz"));
+  const isRejected = useMemo(() => {
+    if (!order) return false;
+    return (
+      (order.head.id_status ?? 0) === 6 ||
+      (order.head.status ?? "").toLowerCase().includes("rechaz")
+    );
+  }, [order]);
 
-  // última actividad (la más reciente, según tu acción ya viene ordenada desc)
   const lastActivity = order?.activity?.[0] ?? null;
   const lastObservation = lastActivity?.observacion ?? null;
 
-  // 👇 Manejar back según de dónde vino (SOLO se usa en back del header y HW back)
   const handleBack = useCallback(() => {
-
     if (cameFromSuccess) {
       router.replace("/(tabs)/orders");
     } else {
-      // viene de orders (lista) → back normal
       router.back();
     }
-
     return true;
   }, [cameFromSuccess, router]);
 
-  // 🔒 Interceptar botón físico / gesto back de Android SOLO si viene de success
   useFocusEffect(
     useCallback(() => {
-      if (!cameFromSuccess) {
-        return undefined;
-      }
+      if (!cameFromSuccess) return undefined;
 
       const subHW = BackHandler.addEventListener("hardwareBackPress", () => {
         return handleBack();
@@ -181,27 +204,22 @@ export default function OrderDetailScreen() {
       {/* Contenido */}
       <View style={styles.content}>
         {loading ? (
-          // 🔄 Loading
           <View style={styles.centerWrapper}>
             <ActivityIndicator size="small" color="#000" />
             <Text style={styles.helperText}>Cargando detalle de la orden…</Text>
           </View>
         ) : loadError ? (
-          // ❌ Error
           <View style={styles.centerWrapper}>
             <Text style={styles.errorText}>{loadError}</Text>
           </View>
         ) : !order ? (
-          // 😶 Sin datos
           <View style={styles.centerWrapper}>
             <Text style={styles.helperText}>
               No se encontró información para la orden #{numericId}.
             </Text>
           </View>
         ) : (
-          // ✅ Detalle
           <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* Banner especial si viene desde Success */}
             {cameFromSuccess && (
               <View style={styles.successBanner}>
                 <Ionicons
@@ -222,9 +240,6 @@ export default function OrderDetailScreen() {
               </View>
             )}
 
-            {/* =========================
-                Barra de estado / “progress”
-               ========================= */}
             {isRejected && (
               <View style={styles.statusBannerRejected}>
                 <View style={styles.statusRow}>
@@ -310,7 +325,6 @@ export default function OrderDetailScreen() {
               ) : (
                 order.det.map((item) => (
                   <View key={item.id_det} style={styles.productRow}>
-                    {/* Imagen del producto */}
                     {item.url_imagen ? (
                       <Image
                         source={{ uri: item.url_imagen }}
@@ -323,15 +337,12 @@ export default function OrderDetailScreen() {
                       </View>
                     )}
 
-                    {/* Info del producto */}
                     <View style={styles.productInfo}>
                       <Text style={styles.productName}>
-                        {item.nombre_producto ??
-                          `Producto #${item.id_producto}`}
+                        {item.nombre_producto ?? `Producto #${item.id_producto}`}
                       </Text>
                       <Text style={styles.productMeta}>
-                        Cantidad: {item.qty} · Precio:{" "}
-                        {formatMoney(item.precio)}
+                        Cantidad: {item.qty} · Precio: {formatMoney(item.precio)}
                       </Text>
                     </View>
 
@@ -352,10 +363,7 @@ export default function OrderDetailScreen() {
 const IMAGE_SIZE = 48;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFD600",
-  },
+  container: { flex: 1, backgroundColor: "#FFD600" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -363,16 +371,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 12,
   },
-  backButton: {
-    padding: 6,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#111827",
-  },
+  backButton: { padding: 6, borderRadius: 20, marginRight: 8 },
+  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#111827" },
   content: {
     flex: 1,
     backgroundColor: "#fff",
@@ -381,27 +381,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
-  centerWrapper: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  centerWrapper: { flex: 1, alignItems: "center", justifyContent: "center" },
   helperText: {
     marginTop: 8,
     fontSize: 14,
     color: "#6b7280",
     textAlign: "center",
   },
-  errorText: {
-    fontSize: 14,
-    color: "#dc2626",
-    textAlign: "center",
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
+  errorText: { fontSize: 14, color: "#dc2626", textAlign: "center" },
+  scrollContent: { paddingBottom: 24 },
 
-  // 🔔 Banner especial cuando viene del success
   successBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -418,12 +407,8 @@ const styles = StyleSheet.create({
     color: "#854D0E",
     marginBottom: 2,
   },
-  successBannerText: {
-    fontSize: 13,
-    color: "#854D0E",
-  },
+  successBannerText: { fontSize: 13, color: "#854D0E" },
 
-  // Banner de estado rechazado
   statusBannerRejected: {
     backgroundColor: "#FEF2F2",
     borderRadius: 12,
@@ -432,24 +417,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FECACA",
   },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  statusTextRejected: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#B91C1C",
-  },
-  statusObservation: {
-    fontSize: 13,
-    color: "#7F1D1D",
-  },
-  statusObservationMuted: {
-    fontSize: 13,
-    color: "#9F1239",
-  },
+  statusRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  statusTextRejected: { fontSize: 14, fontWeight: "700", color: "#B91C1C" },
+  statusObservation: { fontSize: 13, color: "#7F1D1D" },
+  statusObservationMuted: { fontSize: 13, color: "#9F1239" },
 
   card: {
     backgroundColor: "#f9fafb",
@@ -470,10 +441,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 6,
   },
-  label: {
-    fontSize: 13,
-    color: "#6b7280",
-  },
+  label: { fontSize: 13, color: "#6b7280" },
   value: {
     fontSize: 13,
     color: "#111827",
@@ -481,11 +449,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flexShrink: 1,
   },
-  valueStrong: {
-    fontWeight: "700",
-  },
+  valueStrong: { fontWeight: "700" },
 
-  // Productos
   productRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -510,19 +475,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  productInfo: {
-    flex: 1,
-  },
-  productName: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#111827",
-  },
-  productMeta: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginTop: 2,
-  },
+  productInfo: { flex: 1 },
+  productName: { fontSize: 14, fontWeight: "500", color: "#111827" },
+  productMeta: { fontSize: 12, color: "#6b7280", marginTop: 2 },
   productSubtotal: {
     fontSize: 13,
     fontWeight: "600",
@@ -530,26 +485,13 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // Actividad
   activityRow: {
     paddingVertical: 6,
     borderTopWidth: 1,
     borderTopColor: "#e5e7eb",
     marginTop: 4,
   },
-  activityStatus: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  activityMeta: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginTop: 2,
-  },
-  activityObs: {
-    fontSize: 12,
-    color: "#374151",
-    marginTop: 4,
-  },
+  activityStatus: { fontSize: 13, fontWeight: "600", color: "#111827" },
+  activityMeta: { fontSize: 12, color: "#6b7280", marginTop: 2 },
+  activityObs: { fontSize: 12, color: "#374151", marginTop: 4 },
 });

@@ -944,14 +944,21 @@ type OrderByIdApiResponse = {
 
 export async function fetchOrderById(
   id_order: number,
-  token?: string
+  token?: string,
+  id_bodega?: number
 ): Promise<OrderByIdApi | null> {
-  if (!Number.isFinite(id_order) || id_order <= 0) {
+  if (!Number.isFinite(id_order) || id_order <= 0) return null;
+  if (id_bodega !== undefined && (!Number.isFinite(id_bodega) || id_bodega <= 0)) {
     return null;
   }
 
   try {
-    const res = await apiFetch<OrderByIdApiResponse>(`/api/orden/${id_order}`, {
+    const url =
+      id_bodega !== undefined
+        ? `/api/orden/${id_order}?id_bodega=${encodeURIComponent(String(id_bodega))}`
+        : `/api/orden/${id_order}`;
+
+    const res = await apiFetch<OrderByIdApiResponse>(url, {
       method: "GET",
       headers: {
         ...withAuthHeader(token),
@@ -960,10 +967,7 @@ export async function fetchOrderById(
 
     return res.data ?? null;
   } catch (error: any) {
-    if (error?.status === 404) {
-      return null;
-    }
-
+    if (error?.status === 404) return null;
     logApiError("Error fetchOrderById", error);
     return null;
   }
@@ -1014,6 +1018,60 @@ export async function fetchOrdersHeadByBodega(
     return Array.isArray(res?.data) ? res.data : [];
   } catch (error: any) {
     logApiError("Error fetchOrdersHeadByBodega", error);
+    return [];
+  }
+}
+
+// Tipos (ajusta si ya los tienes en otro archivo)
+export type VwOrdersDetRow = {
+  id_det: number;
+  id_order: number;
+  id_producto: number;
+  qty: number;
+  precio: number;
+  sub_total: number;
+  nombre_producto: string | null;
+  url_imagen: string | null;
+};
+
+export type OrdersDetByBodegaApiResponse = {
+  message: string;
+  data: VwOrdersDetRow[];
+  reqId: string;
+};
+
+/**
+ * Fetch a tu API:
+ * GET /api/orders-det/by-bodega?id_order=#&id_bodega=#
+ */
+export async function fetchOrdersDetByBodega(
+  id_order: number,
+  id_bodega: number,
+  token?: string
+): Promise<VwOrdersDetRow[]> {
+  if (!Number.isFinite(id_order) || id_order <= 0) return [];
+  if (!Number.isFinite(id_bodega) || id_bodega <= 0) return [];
+
+  try {
+    const qs = new URLSearchParams();
+    qs.set("id_order", String(id_order));
+    qs.set("id_bodega", String(id_bodega));
+
+    const url = `/api/orders-det/by-bodega?${qs.toString()}`;
+
+    const res = await apiFetch<OrdersDetByBodegaApiResponse>(url, {
+      method: "GET",
+      headers: {
+        ...withAuthHeader(token),
+      },
+    });
+
+    console.log('res,',res );
+    
+
+    return Array.isArray(res.data) ? res.data : [];
+  } catch (error: any) {
+    logApiError("Error fetchOrdersDetByBodega", error);
     return [];
   }
 }

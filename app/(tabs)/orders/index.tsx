@@ -175,7 +175,13 @@ export default function OrdersScreen() {
         key={item.id_order}
         style={styles.card}
         activeOpacity={0.75}
-        onPress={() => router.push(`/orders/${item.id_order}` as any)}
+        onPress={() =>
+  router.push(
+    `/orders/${item.id_order}?id_bodega=${encodeURIComponent(
+      String(item.id_bodega ?? "")
+    )}` as any
+  )
+}
       >
         <View style={styles.cardTop}>
           <Text style={styles.cardTitle}>Orden #{item.id_order}</Text>
