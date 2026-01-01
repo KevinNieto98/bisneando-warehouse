@@ -44,9 +44,31 @@ function getStatusBadge(id_status: number | null, status: string | null) {
     return { text: status ?? "Completada", bg: "#dcfce7", color: "#15803d" };
   }
 
-  // 🟠 En progreso (id_status = 2)
+  // 🟠 Trasladada a almacén (id_status = 2)
   if (id_status === 2) {
-    return { text: status ?? "En progreso", bg: "#ffedd5", color: "#c2410c" };
+    return {
+      text: status ?? "Trasladada a almacén",
+      bg: "#ffedd5",
+      color: "#c2410c",
+    };
+  }
+
+  // 🔵 En preparación (id_status = 3)
+  if (id_status === 3) {
+    return {
+      text: status ?? "En preparación",
+      bg: "#dbeafe",
+      color: "#1d4ed8",
+    };
+  }
+
+  // 🟡 Problemas (id_status = 7)
+  if (id_status === 7) {
+    return {
+      text: status ?? "En problemas",
+      bg: "#fef9c3",
+      color: "#854d0e",
+    };
   }
 
   // ⚪ Default
@@ -76,6 +98,18 @@ type BodegaOrder = {
 type TabKey = "progreso" | "finalizadas";
 const PAGE_SIZE_FINALIZED = 10;
 
+type ProgressGroupKey = "trasladadas" | "preparacion" | "problemas";
+
+/* =========================
+   UI helpers (simulación dropdown)
+   ========================= */
+
+function groupTitle(key: ProgressGroupKey) {
+  if (key === "trasladadas") return "Trasladadas a almacén";
+  if (key === "preparacion") return "En preparación";
+  return "En problemas";
+}
+
 export default function OrdersScreen() {
   const { user, loading } = useAuth();
   const { profile } = useProfile(user?.id);
@@ -95,6 +129,15 @@ export default function OrdersScreen() {
   // Tabs / paginación
   const [activeTab, setActiveTab] = useState<TabKey>("progreso");
   const [finalizedPage, setFinalizedPage] = useState(1);
+
+  // ✅ NUEVO: “listas desplegables” (acordeones) para En Progreso
+  const [openGroups, setOpenGroups] = useState<Record<ProgressGroupKey, boolean>>(
+    {
+      trasladadas: true,
+      preparacion: false,
+      problemas: false,
+    }
+  );
 
   // Pull to refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -137,29 +180,38 @@ export default function OrdersScreen() {
   };
 
   // =========================
-  // ✅ Clasificación correcta:
-  // En Progreso => id_status === 2
-  // Finalizadas => todas las demás
+  // ✅ NUEVA Clasificación:
+  // En Progreso => 2, 3, 7 (subdivididas en “dropdowns”)
+  // Finalizadas => 4, 5, 6
   // =========================
 
-  const inProgressOrders = useMemo(
+  const progressOrdersTrasladadas = useMemo(
     () => orders.filter((o) => o.id_status === 2),
     [orders]
   );
 
-  const finalizedOrders = useMemo(
-    () => orders.filter((o) => o.id_status !== 2),
+  const progressOrdersPreparacion = useMemo(
+    () => orders.filter((o) => o.id_status === 3),
     [orders]
   );
 
-  const visibleOrders =
-    activeTab === "progreso"
-      ? inProgressOrders
-      : finalizedOrders.slice(0, finalizedPage * PAGE_SIZE_FINALIZED);
+  const progressOrdersProblemas = useMemo(
+    () => orders.filter((o) => o.id_status === 7),
+    [orders]
+  );
+
+  const finalizedOrders = useMemo(
+    () => orders.filter((o) => o.id_status === 4 || o.id_status === 5 || o.id_status === 6),
+    [orders]
+  );
+
+  const finalizedVisible = useMemo(
+    () => finalizedOrders.slice(0, finalizedPage * PAGE_SIZE_FINALIZED),
+    [finalizedOrders, finalizedPage]
+  );
 
   const canLoadMoreFinalized =
-    activeTab === "finalizadas" &&
-    finalizedOrders.length > visibleOrders.length;
+    activeTab === "finalizadas" && finalizedOrders.length > finalizedVisible.length;
 
   // =========================
   // Tarjetita
@@ -176,12 +228,12 @@ export default function OrdersScreen() {
         style={styles.card}
         activeOpacity={0.75}
         onPress={() =>
-  router.push(
-    `/orders/${item.id_order}?id_bodega=${encodeURIComponent(
-      String(item.id_bodega ?? "")
-    )}` as any
-  )
-}
+          router.push(
+            `/orders/${item.id_order}?id_bodega=${encodeURIComponent(
+              String(item.id_bodega ?? "")
+            )}` as any
+          )
+        }
       >
         <View style={styles.cardTop}>
           <Text style={styles.cardTitle}>Orden #{item.id_order}</Text>
@@ -209,6 +261,51 @@ export default function OrdersScreen() {
           <Icono name="ChevronRight" size={18} color="#9ca3af" />
         </View>
       </TouchableOpacity>
+    );
+  };
+
+  // ✅ NUEVO: “Dropdown” (acordeón)
+  const renderDropdownSection = (
+    key: ProgressGroupKey,
+    items: BodegaOrder[]
+  ) => {
+    const isOpen = openGroups[key];
+
+    return (
+      <View style={styles.dropdownSection} key={key}>
+        <TouchableOpacity
+          style={styles.dropdownHeader}
+          activeOpacity={0.8}
+          onPress={() =>
+            setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+          }
+        >
+          <View style={styles.dropdownHeaderLeft}>
+            <Text style={styles.dropdownTitle}>{groupTitle(key)}</Text>
+            <View style={styles.dropdownCountPill}>
+              <Text style={styles.dropdownCountText}>{items.length}</Text>
+            </View>
+          </View>
+
+          <Icono
+            name={isOpen ? "ChevronUp" : "ChevronDown"}
+            size={18}
+            color="#6b7280"
+          />
+        </TouchableOpacity>
+
+        {isOpen ? (
+          items.length === 0 ? (
+            <View style={styles.dropdownEmpty}>
+              <Text style={styles.emptyText}>No hay órdenes en esta sección.</Text>
+            </View>
+          ) : (
+            <View style={styles.dropdownBody}>
+              {items.map(renderBodegaOrderCard)}
+            </View>
+          )
+        ) : null}
+      </View>
     );
   };
 
@@ -279,7 +376,9 @@ export default function OrdersScreen() {
                       activeTab === "progreso" && styles.tabBadgeTextActive,
                     ]}
                   >
-                    {inProgressOrders.length}
+                    {progressOrdersTrasladadas.length +
+                      progressOrdersPreparacion.length +
+                      progressOrdersProblemas.length}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -328,18 +427,34 @@ export default function OrdersScreen() {
                   No hay órdenes para esta bodega.
                 </Text>
               </View>
-            ) : visibleOrders.length === 0 ? (
+            ) : activeTab === "progreso" ? (
+              // ✅ NUEVO: “Dropdowns” por estado
+              <>
+                {renderDropdownSection("trasladadas", progressOrdersTrasladadas)}
+                {renderDropdownSection("preparacion", progressOrdersPreparacion)}
+                {renderDropdownSection("problemas", progressOrdersProblemas)}
+
+                {progressOrdersTrasladadas.length +
+                  progressOrdersPreparacion.length +
+                  progressOrdersProblemas.length ===
+                0 ? (
+                  <View style={styles.centerWrapper}>
+                    <Text style={styles.emptyText}>
+                      No hay órdenes en progreso
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            ) : finalizedVisible.length === 0 ? (
               <View style={styles.centerWrapper}>
                 <Text style={styles.emptyText}>
-                  {activeTab === "progreso"
-                    ? "No hay órdenes en progreso (id_status = 2)."
-                    : "No hay órdenes finalizadas."}
+                  No hay órdenes finalizadas.
                 </Text>
               </View>
             ) : (
               <>
                 <View style={styles.listContent}>
-                  {visibleOrders.map(renderBodegaOrderCard)}
+                  {finalizedVisible.map(renderBodegaOrderCard)}
                 </View>
 
                 {canLoadMoreFinalized && (
@@ -547,5 +662,52 @@ const styles = StyleSheet.create({
     color: "#f9fafb",
     fontSize: 13,
     fontWeight: "500",
+  },
+
+  // ✅ NUEVO: “Dropdowns” (acordeón)
+  dropdownSection: {
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  dropdownHeader: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdownHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+    gap: 8,
+  },
+  dropdownTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+    flexShrink: 1,
+  },
+  dropdownCountPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 9999,
+    backgroundColor: "rgba(17,24,39,0.08)",
+  },
+  dropdownCountText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#374151",
+  },
+  dropdownBody: {
+    paddingTop: 10,
+  },
+  dropdownEmpty: {
+    paddingTop: 10,
+    paddingBottom: 2,
   },
 });

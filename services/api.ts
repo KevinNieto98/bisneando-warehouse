@@ -1075,3 +1075,118 @@ export async function fetchOrdersDetByBodega(
     return [];
   }
 }
+
+
+// --------- ActivityOrder: por id_order (GET /api/activityOrder/:id) ----
+export type ActivityOrderApi = {
+  id_act: number;
+  id_order: number;
+  id_status: number | null;
+  fecha_actualizacion: string | null;
+  usuario_actualiza: string | null;
+  observacion: string | null;
+};
+
+type ActivityOrderByIdResponse = {
+  message: string;
+  reqId?: string;
+  data: ActivityOrderApi[];
+};
+
+export async function fetchActivityOrderByOrderId(
+  id_order: number,
+  token?: string
+): Promise<ActivityOrderApi[]> {
+  if (!Number.isFinite(id_order) || id_order <= 0) return [];
+
+  try {
+    const res = await apiFetch<ActivityOrderByIdResponse>(
+      `/api/activityOrder/${id_order}`,
+      {
+        method: "GET",
+        headers: {
+          ...withAuthHeader(token),
+        },
+      }
+    );
+
+    return Array.isArray(res?.data) ? res.data : [];
+  } catch (error: any) {
+    logApiError("Error fetchActivityOrderByOrderId", error);
+    return [];
+  }
+}
+
+
+// --------- Orders: update status (POST /api/orders/update-status) ------
+export type UpdateOrderStatusPayload = {
+  id_order: number;
+  id_status_destino: number; // 5, 6, 7, etc.
+  observacion?: string | null;
+  usuario_actualiza?: string | null;
+};
+
+export type UpdateOrderStatusOk = {
+  message: string;
+  reqId?: string;
+  data: {
+    id_order: number;
+    from_status: number;
+    to_status: number;
+    id_act?: number;
+  };
+};
+
+export type UpdateOrderStatusErr = {
+  message: string;
+  reqId?: string;
+};
+
+export type UpdateOrderStatusResp = UpdateOrderStatusOk | UpdateOrderStatusErr;
+
+/**
+ * POST /api/orders/update-status
+ * Body: { id_order, id_status_destino, observacion?, usuario_actualiza? }
+ */
+export async function updateOrderStatusByIdRequest(
+  payload: UpdateOrderStatusPayload,
+  token?: string
+): Promise<UpdateOrderStatusResp> {
+  // validaciones suaves para no romper flujo
+  if (!Number.isFinite(payload?.id_order) || payload.id_order <= 0) {
+    return { message: "id_order inválido." };
+  }
+  if (
+    !Number.isFinite(payload?.id_status_destino) ||
+    payload.id_status_destino <= 0
+  ) {
+    return { message: "id_status_destino inválido." };
+  }
+
+  try {
+    const res = await apiFetch<UpdateOrderStatusOk>("/api/orders/update-status", {
+      method: "POST",
+      headers: {
+        ...withAuthHeader(token),
+      },
+      body: {
+        id_order: payload.id_order,
+        id_status_destino: payload.id_status_destino,
+        observacion: payload.observacion ?? null,
+        usuario_actualiza: payload.usuario_actualiza ?? null,
+      },
+      timeoutMs: 15000,
+    });
+
+    // Si vino con data coherente, devolvemos ok
+    if (res?.data?.id_order) return res;
+
+    // Si el backend devolvió un message pero no data, devolvemos eso
+    return { message: (res as any)?.message ?? "Respuesta inesperada del servidor." };
+  } catch (error: any) {
+    logApiError("Error updateOrderStatusByIdRequest", error);
+    return {
+      message: error?.message ?? "No se pudo actualizar el estado de la orden.",
+    };
+  }
+}
