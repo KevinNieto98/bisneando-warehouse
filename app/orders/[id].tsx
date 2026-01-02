@@ -116,6 +116,12 @@ export default function OrderDetailScreen() {
   // error del textarea (para obligar observación en cancel/warn)
   const [obsError, setObsError] = useState<string | null>(null);
 
+  // ✅ Normalizar id_bodega del params (para usarlo consistente)
+  const idBodegaParam = useMemo(() => {
+    const b = Number(id_bodega);
+    return Number.isFinite(b) && b > 0 ? b : undefined;
+  }, [id_bodega]);
+
   const openConfirm = (action: "cancel" | "warn" | "update") => {
     setObsError(null);
 
@@ -138,7 +144,7 @@ export default function OrderDetailScreen() {
     }
 
     if (action === "update") {
-      // ✅ Ajuste: texto del confirm depende del estado actual (2->3 o 3->4)
+      // ✅ texto del confirm depende del estado actual (2->3 o 3->4)
       const current = Number(order?.head?.id_status ?? 0);
       const nextStatus = current === 3 ? 4 : 3;
 
@@ -164,20 +170,15 @@ export default function OrderDetailScreen() {
   const refreshOrder = useCallback(async () => {
     if (!numericId || Number.isNaN(numericId)) return;
 
-    const idBodega: number | undefined =
-      id_bodega && Number.isFinite(Number(id_bodega)) && Number(id_bodega) > 0
-        ? Number(id_bodega)
-        : undefined;
-
-    const base = await fetchOrderById(numericId, undefined, idBodega);
+    const base = await fetchOrderById(numericId, undefined, idBodegaParam);
     if (!base) {
       setOrder(null);
       return;
     }
 
     const det =
-      idBodega !== undefined
-        ? await fetchOrdersDetByBodega(numericId, idBodega, undefined)
+      idBodegaParam !== undefined
+        ? await fetchOrdersDetByBodega(numericId, idBodegaParam, undefined)
         : [];
 
     setOrder({
@@ -185,7 +186,7 @@ export default function OrderDetailScreen() {
       activity: (base as FullOrderByIdApi).activity ?? [],
       det: (det as any) ?? [],
     });
-  }, [numericId, id_bodega]);
+  }, [numericId, idBodegaParam]);
 
   // ✅ Confirm -> updateStatus según botón
   // ✅ Ajuste pedido:
@@ -205,8 +206,8 @@ export default function OrderDetailScreen() {
     // cancel => 6 y obs obligatoria
     // warn   => 7 y obs obligatoria
     // update => depende del estado actual:
-    //          - si está en 2 -> pasa a 3 (obs opcional, default "Aprobado...")
-    //          - si está en 3 -> pasa a 4 (obs opcional, default "Aprobado...")
+    //          - si está en 2 -> pasa a 3 (obs opcional, default)
+    //          - si está en 3 -> pasa a 4 (obs opcional, default)
     const requiresObs = action === "cancel" || action === "warn";
 
     if (requiresObs && !obsTrim) {
@@ -243,17 +244,19 @@ export default function OrderDetailScreen() {
         {
           id_order: numericId,
           id_status_destino,
+          // ✅ mandar id_bodega opcional si existe
+          id_bodega: idBodegaParam,
           observacion: finalObs,
           usuario_actualiza: (() => {
-            const b = Number(id_bodega);
-            if (Number.isFinite(b) && b > 0) return `Bodega ${b}`;
+            const b = idBodegaParam;
+            if (Number.isFinite(Number(b)) && Number(b) > 0) return `Bodega ${b}`;
 
             const pb = Number((profile as any)?.id_bodega);
             if (Number.isFinite(pb) && pb > 0) return `Bodega ${pb}`;
 
             return (profile as any)?.email ?? (profile as any)?.usuario ?? "Bodega";
           })(),
-        },
+        } as any,
         undefined
       );
 
@@ -284,14 +287,7 @@ export default function OrderDetailScreen() {
         setLoading(true);
         setLoadError(null);
 
-        const numericId = Number(id);
-
-        const idBodega: number | undefined =
-          id_bodega && Number.isFinite(Number(id_bodega)) && Number(id_bodega) > 0
-            ? Number(id_bodega)
-            : undefined;
-
-        const base = await fetchOrderById(numericId, undefined, idBodega);
+        const base = await fetchOrderById(numericId, undefined, idBodegaParam);
 
         if (!base) {
           setLoadError("No se encontró información para esta orden.");
@@ -307,11 +303,11 @@ export default function OrderDetailScreen() {
         console.log("[activityOrder endpoint] activity:", activityFromEndpoint);
 
         const det =
-          idBodega !== undefined
-            ? await fetchOrdersDetByBodega(numericId, idBodega, undefined)
+          idBodegaParam !== undefined
+            ? await fetchOrdersDetByBodega(numericId, idBodegaParam, undefined)
             : [];
 
-        console.log("idBodega:", idBodega);
+        console.log("idBodega:", idBodegaParam);
         console.log("det:", det);
 
         setOrder({
@@ -328,7 +324,7 @@ export default function OrderDetailScreen() {
     };
 
     load();
-  }, [numericId, profile?.id_bodega]);
+  }, [numericId, idBodegaParam, profile?.id_bodega]);
 
   const orderCode = formatOrderCode(numericId);
 
@@ -366,7 +362,7 @@ export default function OrderDetailScreen() {
     }, [cameFromSuccess, handleBack])
   );
 
-  // ✅ NUEVO: mostrar panel en status 2 o 3
+  // ✅ Panel visible si id_status === 2 o 3
   const canShowUpdatePanel = useMemo(() => {
     const s = Number(order?.head?.id_status ?? 0);
     return s === 2 || s === 3;
@@ -444,7 +440,7 @@ export default function OrderDetailScreen() {
               </View>
             )}
 
-            {/* ✅ AJUSTE: Panel visible si id_status === 2 o 3 */}
+            {/* ✅ Panel visible si id_status === 2 o 3 */}
             {canShowUpdatePanel ? (
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Actualizar Orden</Text>
@@ -491,9 +487,7 @@ export default function OrderDetailScreen() {
                     activeOpacity={0.8}
                   >
                     <Ionicons name="checkmark" size={18} color="white" />
-                    <Text style={styles.actionBtnText}>
-                      Actualizar
-                    </Text>
+                    <Text style={styles.actionBtnText}>Actualizar</Text>
                   </TouchableOpacity>
                 </View>
               </View>

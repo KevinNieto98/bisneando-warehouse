@@ -1119,12 +1119,7 @@ export async function fetchActivityOrderByOrderId(
 
 
 // --------- Orders: update status (POST /api/orders/update-status) ------
-export type UpdateOrderStatusPayload = {
-  id_order: number;
-  id_status_destino: number; // 5, 6, 7, etc.
-  observacion?: string | null;
-  usuario_actualiza?: string | null;
-};
+
 
 export type UpdateOrderStatusOk = {
   message: string;
@@ -1148,6 +1143,19 @@ export type UpdateOrderStatusResp = UpdateOrderStatusOk | UpdateOrderStatusErr;
  * POST /api/orders/update-status
  * Body: { id_order, id_status_destino, observacion?, usuario_actualiza? }
  */
+/**
+ * POST /api/orders/update-status
+ * Body: { id_order, id_status_destino, id_bodega?, observacion?, usuario_actualiza? }
+ */
+
+export type UpdateOrderStatusPayload = {
+  id_order: number;
+  id_status_destino: number;
+  id_bodega?: number | null; // ✅ opcional
+  observacion?: string | null;
+  usuario_actualiza?: string | null;
+};
+
 export async function updateOrderStatusByIdRequest(
   payload: UpdateOrderStatusPayload,
   token?: string
@@ -1163,18 +1171,38 @@ export async function updateOrderStatusByIdRequest(
     return { message: "id_status_destino inválido." };
   }
 
+  // ✅ id_bodega opcional: solo validamos si viene
+  const bodegaNum =
+    payload?.id_bodega === undefined || payload?.id_bodega === null
+      ? undefined
+      : Number(payload.id_bodega);
+
+  if (
+    bodegaNum !== undefined &&
+    (!Number.isFinite(bodegaNum) || bodegaNum <= 0)
+  ) {
+    return { message: "id_bodega inválido (si lo envías debe ser > 0)." };
+  }
+
   try {
+    const body: Record<string, any> = {
+      id_order: payload.id_order,
+      id_status_destino: payload.id_status_destino,
+      observacion: payload.observacion ?? null,
+      usuario_actualiza: payload.usuario_actualiza ?? null,
+    };
+
+    // ✅ solo se agrega si viene en el payload (opcional)
+    if (bodegaNum !== undefined) {
+      body.id_bodega = bodegaNum;
+    }
+
     const res = await apiFetch<UpdateOrderStatusOk>("/api/orders/update-status", {
       method: "POST",
       headers: {
         ...withAuthHeader(token),
       },
-      body: {
-        id_order: payload.id_order,
-        id_status_destino: payload.id_status_destino,
-        observacion: payload.observacion ?? null,
-        usuario_actualiza: payload.usuario_actualiza ?? null,
-      },
+      body,
       timeoutMs: 15000,
     });
 
@@ -1182,7 +1210,9 @@ export async function updateOrderStatusByIdRequest(
     if (res?.data?.id_order) return res;
 
     // Si el backend devolvió un message pero no data, devolvemos eso
-    return { message: (res as any)?.message ?? "Respuesta inesperada del servidor." };
+    return {
+      message: (res as any)?.message ?? "Respuesta inesperada del servidor.",
+    };
   } catch (error: any) {
     logApiError("Error updateOrderStatusByIdRequest", error);
     return {
