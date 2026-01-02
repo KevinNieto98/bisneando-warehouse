@@ -1220,3 +1220,82 @@ export async function updateOrderStatusByIdRequest(
     };
   }
 }
+
+// --------- Orders Fulfillment: por bodega + status opcional -------------
+// Endpoint:
+// GET /api/orders/fulfillment/by-bodega?id_bodega=1&id_status=2
+
+export type OrdersFulfillmentRow = {
+  id_fulfillment: number;
+  id_order: number;
+  id_bodega: number | null;
+  id_status: number | null;
+  is_used: boolean | null;
+  observacion: string | null;
+  usuario_actualiza: string | null;
+  fecha_actualizacion: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
+};
+
+export type OrdersFulfillmentByBodegaOk = {
+  message: string;
+  reqId?: string;
+  data: OrdersFulfillmentRow[];
+};
+
+export type OrdersFulfillmentByBodegaErr = {
+  message: string;
+  reqId?: string;
+  data?: OrdersFulfillmentRow[];
+};
+
+export type OrdersFulfillmentByBodegaResp =
+  | OrdersFulfillmentByBodegaOk
+  | OrdersFulfillmentByBodegaErr;
+
+/**
+ * GET /api/orders/fulfillment/by-order?id_order=...&id_status=...
+ * - id_order: requerido
+ * - id_status: opcional (si viene, filtra por ese status)
+ *
+ * Devuelve fulfillment de TODAS las bodegas para la orden.
+ */export async function fetchOrdersFulfillmentByOrder(
+  params: { id_order: number; id_status?: number | null },
+  token?: string
+): Promise<OrdersFulfillmentRow[]> {
+  const id_order = Number(params?.id_order);
+  const id_status =
+    params?.id_status === undefined || params?.id_status === null
+      ? undefined
+      : Number(params.id_status);
+
+  if (!Number.isFinite(id_order) || id_order <= 0) return [];
+  if (id_status !== undefined && (!Number.isFinite(id_status) || id_status <= 0)) return [];
+
+  try {
+    const qs = new URLSearchParams();
+    qs.set("id_order", String(id_order));
+    if (id_status !== undefined) qs.set("id_status", String(id_status));
+
+    const path = `/api/orders/fulfillment/by-bodega?${qs.toString()}`;
+    const res = await apiFetch<any>(path, {
+      method: "GET",
+      headers: { ...withAuthHeader(token) },
+      timeoutMs: 15000,
+    });
+
+    console.log("[fetchOrdersFulfillmentByOrder] path:", path);
+    console.log("[fetchOrdersFulfillmentByOrder] raw res:", res);
+
+    const rows = res?.data;
+    console.log("[fetchOrdersFulfillmentByOrder] res.data:", rows);
+
+    return Array.isArray(rows) ? (rows as OrdersFulfillmentRow[]) : [];
+  } catch (error: any) {
+    logApiError("Error fetchOrdersFulfillmentByOrder", error);
+    return [];
+  }
+}
