@@ -1,4 +1,4 @@
-import { Category } from "@/store/useAppStore";
+
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useRef, useState } from "react";
 import {
@@ -10,6 +10,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+export interface Category {
+  id_categoria: number;
+  nombre_categoria: string;
+  activa: boolean;
+  icono?: string;
+}
+ 
 
 interface CategoriesContainerProps {
   categories: Category[];

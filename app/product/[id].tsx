@@ -2,12 +2,11 @@ import { ProductSkeleton } from "@/components";
 import { ProductActions } from "@/components/product/ProductActions";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { ProductDescription } from "@/components/product/ProductDescription";
-import { ProductGridSimilares } from "@/components/product/ProductGridSimilares";
 import { ProductHeader } from "@/components/product/ProductHeader";
 import { ProductInfo } from "@/components/product/ProductInfo";
 import SuccessToast from "@/components/ui/SuccessToast";
 import { fetchProductoById } from "@/services/api";
-import { useAppStore } from "@/store/useAppStore";
+
 import { useCartStore } from "@/store/useCartStore";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams } from "expo-router";
@@ -44,7 +43,6 @@ export default function ProductScreen() {
     routeId != null ? s.items[String(routeId)] : undefined
   );
 
-  const products = useAppStore((state) => state.products);
 
   // ---- UI helpers
   const [addedVisible, setAddedVisible] = useState(false);
@@ -166,12 +164,7 @@ export default function ProductScreen() {
 
             <ProductDescription descripcion={producto.descripcion ?? ""} />
 
-            {products && products.length > 0 && (
-              <View style={{ marginTop: 20 }}>
-                <Text style={styles.similaresTitle}>Productos Similares</Text>
-                <ProductGridSimilares products={products} />
-              </View>
-            )}
+         
           </View>
         }
       />

@@ -47,16 +47,10 @@ export const ProductGridItem: React.FC<Props> = ({
     [product.price]
   );
 
-  const handleOpenProduct = () => {
-    if (isOutOfStock) return; // 👈 no navegar si no hay stock
+  const handleOpenProduct = () => { // 👈 no navegar si no hay stock
     router.push(`../product/${product.id}`);
   };
 
-  const handleCartPress = () => {
-    if (isOutOfStock) return; // 👈 tampoco agregar si no hay stock
-    if (onAddToCart) onAddToCart(product);
-    else router.push(`../product/${product.id}`);
-  };
 
   return (
     <Pressable

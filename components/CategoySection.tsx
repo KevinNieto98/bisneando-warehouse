@@ -1,4 +1,3 @@
-import { Category } from "@/store/useAppStore";
 import { router } from "expo-router";
 import React, { useRef } from "react";
 // Asegúrate de importar PressableStateCallbackType si es necesario para el tipado, 
@@ -9,6 +8,13 @@ import Icono from "./ui/Icon.native";
 type Props = {
   categories: Category[];
 };
+
+export interface Category {
+  id_categoria: number;
+  nombre_categoria: string;
+  activa: boolean;
+  icono?: string;
+}
 
 const pastelColors = [
   "#FDE68A",

@@ -123,20 +123,26 @@ export async function fetchCategorias() {
 
 
 
-export async function fetchProductosDestacados() {
+export async function fetchProductosDestacados(id_bodega: number | null) {
   try {
+    if (!id_bodega || Number.isNaN(id_bodega)) return [];
+
     const params = new URLSearchParams({
-      onlyActive: "true",
       orderBy: "fecha_creacion",
       orderDir: "desc",
       limit: "10",
     });
-    const res = await apiFetch<any[]>(`/api/productos/?${params.toString()}`);
+
+    const res = await apiFetch<any[]>(
+      `/api/productosbyBodega/${id_bodega}?${params.toString()}`
+    );
+
     return Array.isArray(res) ? res : [];
   } catch {
     return [];
   }
 }
+
 
 export async function fetchProductoById(id: number) {
   try {

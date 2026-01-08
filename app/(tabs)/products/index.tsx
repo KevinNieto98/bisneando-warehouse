@@ -4,7 +4,9 @@ import { ProductGrid } from "@/components/ProductGrid";
 import type { Product } from "@/components/ProductSlideItem";
 import { InternetError } from "@/components/ui/InternetError";
 import { Search } from "@/components/ui/Search";
-import { useAppStore } from "@/store/useAppStore";
+import { useProfile } from "@/hooks/useProfile";
+import { supabase } from "@/lib/supabase";
+import { fetchCategorias, fetchProductosDestacados } from "@/services/api";
 import { router, useLocalSearchParams } from "expo-router";
 import { Trash2 } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
@@ -20,6 +22,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 type Selected = number | "all";
 
+type Category = {
+  id_categoria: number;
+  nombre_categoria: string;
+  activa: boolean;
+  icono?: string;
+};
+
 const getProductCategoryId = (p: any): number | undefined => {
   if (!p || typeof p !== "object") return undefined;
   return (
@@ -29,15 +38,40 @@ const getProductCategoryId = (p: any): number | undefined => {
   );
 };
 
+const isValidBodegaId = (v: any): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0;
+
 export default function ExploreScreen() {
-  const {
-    categories,
-    loadingCategories,
-    products,
-    loadingProducts,
-    loadCategories,
-    loadProducts,
-  } = useAppStore();
+  // 1) userId
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!mounted) return;
+      setUserId(data.user?.id);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 2) profile (incluye id_bodega)
+  const { profile, loading: loadingProfile } = useProfile(userId);
+
+  // 3) Estado local
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Control de error de datos (bodega / productos)
+  const [dataError, setDataError] = useState(false);
+  const [dataErrorMessage, setDataErrorMessage] = useState(
+    "Ocurrió un problema y no pudimos cargar los productos. Intenta de nuevo."
+  );
 
   const { categoryId } = useLocalSearchParams<{ categoryId?: string }>();
 
@@ -52,20 +86,123 @@ export default function ExploreScreen() {
     "No pudimos cargar los productos. Revisa tu conexión a internet."
   );
 
-  // Cargar data inicial
-  useEffect(() => {
-    const loadInitial = async () => {
-      setNetworkError(false);
-      await Promise.all([loadCategories(), loadProducts()]);
-    };
+  // --- Loaders
+  const loadCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const data = await fetchCategorias();
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error cargando categorías:", error);
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
-    loadInitial();
-  }, [loadCategories, loadProducts]);
+  const loadProducts = async () => {
+    const bodegaId = profile?.id_bodega;
+
+    // ✅ Requisito: id_bodega válido
+    if (!isValidBodegaId(bodegaId)) {
+      setProducts([]);
+      setDataError(true);
+      setDataErrorMessage(
+        "Ocurrió un problema: no se pudo determinar tu bodega. Verifica tu perfil o vuelve a iniciar sesión."
+      );
+      return;
+    }
+
+    try {
+      setLoadingProducts(true);
+      setDataError(false);
+
+      const data = await fetchProductosDestacados(bodegaId);
+
+      const mapped: Product[] = (Array.isArray(data) ? data : []).map(
+        (prod: any) => ({
+          id: Number(prod.id_producto),
+          slug: String(prod.slug ?? prod.id_producto),
+          title: String(prod.nombre_producto),
+          price: Number(prod.precio),
+          images: Array.isArray(prod.imagenes)
+            ? prod.imagenes
+                .map((img: any) => img?.url_imagen)
+                .filter((u: any) => typeof u === "string" && u.length > 0)
+            : [],
+          brand: prod.nombre_marca || undefined,
+          id_categoria:
+            Number(
+              prod.id_categoria ??
+                prod.categoria_id ??
+                prod.categoryId ??
+                prod.category_id
+            ) || 0,
+          qty: Number(
+            prod.qty ??
+              prod.existencia ??
+              prod.stock ??
+              prod.availableQty ??
+              0
+          ),
+        })
+      );
+
+      setProducts(mapped);
+
+      // Si es normal que haya bodegas sin productos, comenta este bloque.
+      if (mapped.length === 0) {
+        setDataError(true);
+        setDataErrorMessage(
+          "Ocurrió un problema y no pudimos obtener productos para tu bodega. Intenta de nuevo."
+        );
+      }
+    } catch (error) {
+      console.error("Error cargando productos:", error);
+      setProducts([]);
+      setDataError(true);
+      setDataErrorMessage(
+        "Ocurrió un problema al cargar los productos. Intenta de nuevo."
+      );
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // --- Carga inicial / recarga cuando llega id_bodega
+  useEffect(() => {
+    if (loadingProfile) return;
+    if (!userId) return;
+
+    setNetworkError(false);
+    setDataError(false);
+
+    loadCategories();
+    loadProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingProfile, userId, profile?.id_bodega]);
+
+  // Fallback: si pasan X ms y no llega bodega, muestra error (evita pantalla “vacía”)
+  useEffect(() => {
+    if (loadingProfile) return;
+    if (!userId) return;
+
+    const t = setTimeout(() => {
+      if (!isValidBodegaId(profile?.id_bodega)) {
+        setDataError(true);
+        setDataErrorMessage(
+          "Ocurrió un problema: no se pudo determinar tu bodega. Intenta de nuevo."
+        );
+      }
+    }, 1200);
+
+    return () => clearTimeout(t);
+  }, [loadingProfile, userId, profile?.id_bodega]);
 
   // Detectar "posible error de red" cuando termina de cargar y no hay datos
   useEffect(() => {
     if (!loadingCategories && !loadingProducts) {
-      if (categories.length === 0 && products.length === 0) {
+      if (categories.length === 0 && products.length === 0 && !dataError) {
         setNetworkError(true);
       } else {
         setNetworkError(false);
@@ -76,6 +213,7 @@ export default function ExploreScreen() {
     loadingProducts,
     categories.length,
     products.length,
+    dataError,
   ]);
 
   // Inicializar categoría desde la ruta
@@ -93,7 +231,7 @@ export default function ExploreScreen() {
     setSearchResults(null);
   }, [selectedCat]);
 
-  const loading = loadingCategories || loadingProducts;
+  const loading = loadingCategories || loadingProducts || loadingProfile;
 
   // Filtrar por categoría
   const filteredProducts = useMemo(() => {
@@ -123,21 +261,25 @@ export default function ExploreScreen() {
       setSearchResults(null);
       return;
     }
-    setSearchResults([product]); // Muestra solo ese producto en el grid
+    setSearchResults([product]);
   };
 
   // Limpiar filtros + limpiar buscador
   const handleClearFilters = () => {
     setSelectedCat("all");
     setSearchResults(null);
-    setSearchResetKey((prev) => prev + 1); // fuerza remount del <Search />
+    setSearchResetKey((prev) => prev + 1);
   };
 
   // Pull-to-refresh de la grilla
   const handleRefresh = async () => {
     setRefreshing(true);
     setNetworkError(false);
-    await Promise.all([loadCategories(), loadProducts()]);
+    setDataError(false);
+
+    await loadCategories();
+    await loadProducts();
+
     setRefreshing(false);
   };
 
@@ -145,7 +287,6 @@ export default function ExploreScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar backgroundColor="#FFD600" barStyle="dark-content" />
 
-      {/* key para poder resetear el input del Search */}
       <Search
         key={searchResetKey}
         products={filteredProducts}
@@ -163,21 +304,19 @@ export default function ExploreScreen() {
       <View
         style={[
           styles.productsContainer,
-          // *** CAMBIO 2: Eliminar marginTop: -8 para corregir espacio amarillo en Android ***
-          Platform.OS === "android" && { marginTop: StatusBar.currentHeight ? 0 : 0 }, 
+          Platform.OS === "android" && {
+            marginTop: StatusBar.currentHeight ? 0 : 0,
+          },
         ]}
       >
         {loading ? (
           <ExploreSkeleton />
+        ) : dataError ? (
+          <InternetError message={dataErrorMessage} onRetry={handleRefresh} />
         ) : networkError ? (
-          // Vista de "sin conexión"
-          <InternetError
-            message={networkErrorMessage}
-            onRetry={handleRefresh}
-          />
+          <InternetError message={networkErrorMessage} onRetry={handleRefresh} />
         ) : (
           <>
-            {/* Banner de filtro activo */}
             {selectedCat !== "all" && (
               <View style={styles.filterPill}>
                 <Text style={styles.filterPillText}>
@@ -238,18 +377,14 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
-    // *** CAMBIO 2: Eliminamos la superposición (marginTop: -8) ***
-    // Esto se maneja mejor en la prop de View condicional en Android
   },
 
-  /* Banner tipo "pill" elegante */
   filterPill: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#FFF8C8",
-    // *** CAMBIO 1: Reducción de la altura vertical ***
-    paddingVertical: 8, // Reducido de 10 a 8
+    paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 50,
     marginBottom: 14,
@@ -282,7 +417,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  /* Sin coincidencias */
   noMatchesBox: {
     marginTop: 32,
     paddingVertical: 16,
