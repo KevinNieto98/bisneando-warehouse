@@ -1305,3 +1305,62 @@ export type OrdersFulfillmentByBodegaResp =
     return [];
   }
 }
+
+export type MarcaRow = {
+  id_marca: number;
+  nombre_marca: string;
+  is_active: boolean;
+};
+
+export async function fetchMarcas() {
+  try {
+    const res = await apiFetch<MarcaRow[]>("/api/marcas");
+    return Array.isArray(res) ? res : [];
+  } catch {
+    return [];
+  }
+}
+
+// --------- Productos: actualizar (PUT /api/productos/:id) --------------
+export type UpdateProductoPayload = {
+  nombre_producto: string;
+  is_active: boolean;
+  qty: number;
+  slug: string;
+  precio: number;
+  id_categoria: number;
+  descripcion: string;
+  id_marca?: number | null;
+  en_revision?: boolean; // opcional (si no va, backend lo pone false)
+};
+
+export async function updateProductoById(
+  id: number,
+  payload: UpdateProductoPayload
+) {
+  try {
+    if (!Number.isFinite(id) || id <= 0) return null;
+
+    const body: UpdateProductoPayload = {
+      ...payload,
+      // opcional: si no lo mandas, el backend lo default a false.
+      // pero si quieres ser consistente desde app:
+      en_revision: payload.en_revision ?? false,
+    };
+
+    const res = await apiFetch<any>(`/api/productos/${id}`, {
+      method: "PUT",
+      body,
+      timeoutMs: 15000,
+    });
+
+    // apiFetch no lanza, así que si vino error, probablemente venga como {error: "..."}
+    if (res && typeof res === "object" && "error" in res) {
+      return null;
+    }
+
+    return res ?? null;
+  } catch {
+    return null;
+  }
+}
