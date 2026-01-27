@@ -4,8 +4,6 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 type Props = {
   cantidad: number;
   setCantidad: (n: number) => void;
-  onWhatsApp: () => void;
-  onShare: () => void;
   /** Stock máximo permitido; si es 0 o menor, el stepper queda deshabilitado */
   maxQty?: number;
 };
@@ -13,8 +11,6 @@ type Props = {
 export function ProductActions({
   cantidad,
   setCantidad,
-  onWhatsApp,
-  onShare,
   maxQty = 0,
 }: Props) {
   const atMin = cantidad <= 1;
@@ -22,21 +18,14 @@ export function ProductActions({
   const disabled = maxQty <= 0;
 
   return (
-    <View style={styles.counterRow}>
-      {/* WhatsApp */}
-      <TouchableOpacity style={[styles.wideButton, styles.whatsappButton]} onPress={onWhatsApp}>
-        <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Compartir */}
-      <TouchableOpacity style={[styles.wideButton, styles.shareButton]} onPress={onShare}>
-        <Ionicons name="share-social" size={20} color="#2563eb" />
-      </TouchableOpacity>
-
-      {/* Counter (mismas dimensiones/estilos) */}
-      <View style={styles.counterContainer}>
+    <View style={styles.container}>
+      {/* Contador ocupa ahora todo el ancho */}
+      <View style={[styles.counterContainer, disabled && styles.counterDisabled]}>
         <TouchableOpacity
-          style={styles.counterButton}
+          style={[
+            styles.counterButton,
+            (atMin || disabled) && styles.counterButtonDisabled,
+          ]}
           onPress={() => {
             if (!atMin && !disabled) setCantidad(cantidad - 1);
           }}
@@ -44,15 +33,23 @@ export function ProductActions({
         >
           <Ionicons
             name="remove"
-            size={18}
-            color={atMin || disabled ? "#9ca3af" : "#000"}
+            size={20}
+            color={atMin || disabled ? "#9CA3AF" : "#111"}
           />
         </TouchableOpacity>
 
-        <Text style={styles.counterText}>{cantidad}</Text>
+        <View style={styles.counterCenter}>
+          <Text style={styles.counterValue}>{cantidad}</Text>
+          {maxQty > 0 && (
+            <Text style={styles.counterHint}>Stock máximo: {maxQty}</Text>
+          )}
+        </View>
 
         <TouchableOpacity
-          style={styles.counterButton}
+          style={[
+            styles.counterButton,
+            (atMax || disabled) && styles.counterButtonDisabled,
+          ]}
           onPress={() => {
             if (!atMax && !disabled) setCantidad(cantidad + 1);
           }}
@@ -60,58 +57,81 @@ export function ProductActions({
         >
           <Ionicons
             name="add"
-            size={18}
-            color={atMax || disabled ? "#9ca3af" : "#000"}
+            size={20}
+            color={atMax || disabled ? "#9CA3AF" : "#111"}
           />
         </TouchableOpacity>
       </View>
+
+      {disabled && (
+        <Text style={styles.disabledText}>
+          No hay stock disponible para modificar la cantidad
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  counterRow: {
+  container: {
+    width: "100%",
+    marginVertical: 8,
+  },
+
+  counterContainer: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginVertical: 8,
-    gap: 12,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  wideButton: {
-    flex: 1, // cada botón ocupa 1 parte → 1/4 del total
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    paddingVertical: 12,
-    gap: 6,
+
+  counterDisabled: {
+    backgroundColor: "#E5E7EB",
   },
-  whatsappButton: { backgroundColor: "#25D366" },
-  shareButton: { backgroundColor: "#f2f2f2" },
-  counterContainer: {
-    flex: 2, // el counter ocupa 2 partes → 1/2 del total
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between", // distribuye botones y número
-    backgroundColor: "#f2f2f2",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
+
   counterButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 20,
-    backgroundColor: "white",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#D1D5DB",
     alignItems: "center",
     justifyContent: "center",
   },
-  counterText: {
-    fontSize: 16,
-    fontWeight: "700",
+
+  counterButtonDisabled: {
+    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E7EB",
+  },
+
+  counterCenter: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+
+  counterValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111827",
+  },
+
+  counterHint: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+
+  disabledText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#DC2626",
     textAlign: "center",
-    flex: 1, // hace que el número ocupe el centro del espacio
+    fontWeight: "600",
   },
 });
