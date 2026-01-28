@@ -1320,8 +1320,9 @@ export async function fetchMarcas() {
     return [];
   }
 }
-
 // --------- Productos: actualizar (PUT /api/productos/:id) --------------
+// ✅ Opción 2: Expo sube directo a Storage y el API SOLO guarda URLs (JSON only)
+
 export type UpdateProductoPayload = {
   nombre_producto: string;
   is_active: boolean;
@@ -1331,36 +1332,83 @@ export type UpdateProductoPayload = {
   id_categoria: number;
   descripcion: string;
   id_marca?: number | null;
-  en_revision?: boolean; // opcional (si no va, backend lo pone false)
+  en_revision?: boolean;
 };
+
+/**
+ * Opción 2 (JSON):
+ * - keepUrls: URLs remotas que se quedan (ya existen en BD)
+ * - newUrls: URLs nuevas (ya subidas a Storage desde Expo)
+ */
+export type UpdateProductoPayloadWithImages = UpdateProductoPayload & {
+  keepUrls?: string[];
+  newUrls?: string[];
+};
+
+function getApiBaseUrl() {
+  // ✅ Define esto en .env de Expo:
+  // EXPO_PUBLIC_API_URL=http://192.168.1.25:3000
+  const base =
+    (process.env.EXPO_PUBLIC_API_URL as string | undefined) ??
+    (process.env.NEXT_PUBLIC_API_URL as string | undefined) ??
+    "";
+
+  // Sin base, usar relativo puede funcionar en web, pero en RN da 404.
+  return base.replace(/\/$/, ""); // sin trailing slash
+}
 
 export async function updateProductoById(
   id: number,
-  payload: UpdateProductoPayload
+  payload: UpdateProductoPayloadWithImages
 ) {
   try {
     if (!Number.isFinite(id) || id <= 0) return null;
 
-    const body: UpdateProductoPayload = {
+    const baseUrl = getApiBaseUrl();
+    const url = baseUrl ? `${baseUrl}/api/productos/${id}` : `/api/productos/${id}`;
+
+    const timeoutMs = 15000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    // ✅ JSON ONLY (el endpoint rechaza multipart)
+    const body: UpdateProductoPayloadWithImages = {
       ...payload,
-      // opcional: si no lo mandas, el backend lo default a false.
-      // pero si quieres ser consistente desde app:
-      en_revision: payload.en_revision ?? false,
+      en_revision: true,
+      keepUrls: Array.isArray(payload?.keepUrls) ? payload.keepUrls : [],
+      newUrls: Array.isArray(payload?.newUrls) ? payload.newUrls : [],
     };
 
-    const res = await apiFetch<any>(`/api/productos/${id}`, {
+    const res = await fetch(url, {
       method: "PUT",
-      body,
-      timeoutMs: 15000,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
     });
 
-    // apiFetch no lanza, así que si vino error, probablemente venga como {error: "..."}
-    if (res && typeof res === "object" && "error" in res) {
+    clearTimeout(timer);
+
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = { raw: text };
+    }
+
+    if (!res.ok) {
+      console.error("PUT /api/productos failed:", res.status, data);
       return null;
     }
 
-    return res ?? null;
-  } catch {
+    if (data && typeof data === "object" && "error" in data) {
+      console.error("PUT /api/productos backend error:", data);
+      return null;
+    }
+
+    return data ?? null;
+  } catch (e: any) {
+    console.error("updateProductoById exception:", e?.message ?? e);
     return null;
   }
 }
