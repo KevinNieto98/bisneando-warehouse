@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiFetchCategorias, apiFetchMarcas, apiFetchProductoById } from "../_services/productApi";
-import type { Category, MarcaRow, Option, ProductAPI } from "../_types";
-import { mapProductToInitialForm } from "../_utils/mappers";
+import type { Category, MarcaRow, Option, ProductAPI } from "../types/product";
+
+import { mapProductToInitialForm } from "@/utils/mappers";
+import { apiFetchCategorias, apiFetchMarcas, apiFetchProductoById } from "../services/product/productApi";
 
 export function useProductEditQuery(idProducto: number) {
   const [producto, setProducto] = useState<ProductAPI | null>(null);

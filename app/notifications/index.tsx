@@ -1,4 +1,4 @@
-import { ProductHeader } from "@/components/product/ProductHeader";
+import { ProductHeader } from "@/components/ui/Header";
 import Icono from "@/components/ui/Icon.native";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";

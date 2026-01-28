@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import type { EditableImage } from "../_types";
-import { buildStoragePath, guessMimeFromUri, guessNameFromUri } from "../_utils/imageUtils";
+import { EditableImage } from "@/types";
+import { buildStoragePath, guessMimeFromUri, guessNameFromUri } from "@/utils";
 
 const BUCKET = "imagenes_productos";
 

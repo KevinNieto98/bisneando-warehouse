@@ -1,4 +1,5 @@
-import type { Option } from "@/app/product/_types";
+
+import type { Option } from "@/types/product";
 import { Picker } from "@react-native-picker/picker";
 import React from "react";
 import { Text, View } from "react-native";

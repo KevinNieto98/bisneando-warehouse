@@ -1,7 +1,7 @@
-import type { EditableImage } from "@/app/product/_types";
 import { updateProductoById } from "@/services/api";
+import type { EditableImage } from "@/types/product";
+import { guessMimeFromUri, guessNameFromUri } from "@/utils";
 import { useState } from "react";
-import { guessMimeFromUri, guessNameFromUri } from "../_utils/imageUtils";
 
 type FormState = {
   nombre: string;

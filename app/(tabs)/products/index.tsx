@@ -1,5 +1,6 @@
 import { ExploreSkeleton } from "@/components";
 import { CategoriesContainer } from "@/components/CategoriesContainer";
+
 import { ProductGrid } from "@/components/ProductGrid";
 import type { Product } from "@/components/ProductSlideItem";
 import { InternetError } from "@/components/ui/InternetError";

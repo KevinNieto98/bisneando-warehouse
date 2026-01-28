@@ -2,11 +2,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { ProductSkeleton } from "@/components";
-import { ProductConfirmModals, ProductEditView } from "@/components/ProductScreen";
-import { useProductEditQuery } from "./_hooks/_useProductEditQuery";
-import { useProductEditForm } from "./_hooks/useProductEditForm";
-import { useProductEditSave } from "./_hooks/useProductEditSave";
+
+import { ProductConfirmModals, ProductEditView, ProductSkeleton } from "@/components";
+import { useProductEditForm, useProductEditQuery, useProductEditSave } from "@/hooks";
 
 export default function ProductEditRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();

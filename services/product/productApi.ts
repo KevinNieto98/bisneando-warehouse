@@ -1,11 +1,11 @@
 import {
-    fetchCategorias,
-    fetchMarcas,
-    fetchProductoById,
-    updateProductoById,
+  fetchCategorias,
+  fetchMarcas,
+  fetchProductoById,
+  updateProductoById,
 } from "@/services/api";
 
-import type { UpdateProductoJsonPayload } from "../_types";
+import type { UpdateProductoJsonPayload } from "../../types/product";
 
 export async function apiFetchCategorias() {
   return fetchCategorias();

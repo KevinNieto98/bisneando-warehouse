@@ -3,36 +3,35 @@ import { Platform, StatusBar, View } from "react-native";
 import { KeyboardAwareFlatList } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ProductHeader } from "@/components/product/ProductHeader";
+import { ProductHeader } from "@/components/ui/Header";
 import SuccessToast from "@/components/ui/SuccessToast";
+import type { EditableImage, Option } from "@/types/product";
 
 import {
-    ProductBottomBar,
-    ProductImagesSection,
-    ProductQuantitySection,
-    ProductSelectorsSection,
-    ProductStatusSection,
-    ProductTextFieldsSection,
-} from ".";
+  ProductBottomBar,
+  ProductImagesSection,
+  ProductSelectorsSection,
+  ProductStatusAndQuantitySection,
+  ProductTextFieldsSection,
+} from "../atoms";
 
-import type { EditableImage, Option } from "@/app/product/_types";
-import { styles } from "./styles";
+import { styles } from "../atoms/styles";
 
 type Props = {
   savedVisible: boolean;
 
-  // ✅ navegación/acciones
+  // navegación/acciones
   onPressExit: () => void;
-  onPressSave: () => void; // ✅ faltaba
+  onPressSave: () => void;
 
-  saving: boolean; // ✅ faltaba
+  saving: boolean;
 
   // imágenes
   imagenes: EditableImage[];
   onRemoveImage: (id: string) => void;
   onAddImages: () => Promise<void> | void;
 
-  // estado
+  // status
   isActive: boolean;
   setIsActive: (v: boolean) => void;
 
@@ -46,7 +45,7 @@ type Props = {
   descripcion: string;
   setDescripcion: (v: string) => void;
 
-  // selectors (con options ya resueltas)
+  // selectors
   loadingMarcas: boolean;
   marcaId: number | null;
   setMarcaId: (v: number | null) => void;
@@ -60,6 +59,9 @@ type Props = {
   // qty
   cantidad: number;
   setCantidad: (n: number) => void;
+
+  // ✅ opcional (si quieres controlar max stock desde arriba)
+  maxQty?: number;
 };
 
 export default function ProductEditView(props: Props) {
@@ -91,9 +93,13 @@ export default function ProductEditView(props: Props) {
               onAdd={props.onAddImages}
             />
 
-            <ProductStatusSection
+            {/* ✅ COMBINADO: status + cantidad */}
+            <ProductStatusAndQuantitySection
               isActive={props.isActive}
               setIsActive={props.setIsActive}
+              cantidad={props.cantidad}
+              setCantidad={props.setCantidad}
+              maxQty={props.maxQty ?? 999999}
             />
 
             <ProductTextFieldsSection
@@ -115,20 +121,11 @@ export default function ProductEditView(props: Props) {
               setCategoriaId={props.setCategoriaId}
               categoriaOptions={props.categoriaOptions}
             />
-
-            <ProductQuantitySection
-              cantidad={props.cantidad}
-              setCantidad={props.setCantidad}
-            />
           </View>
         }
       />
 
-      {/* ✅ Bottom bar con Guardar */}
-      <ProductBottomBar
-        saving={props.saving}
-        onPressSave={props.onPressSave}
-      />
+      <ProductBottomBar saving={props.saving} onPressSave={props.onPressSave} />
     </SafeAreaView>
   );
 }

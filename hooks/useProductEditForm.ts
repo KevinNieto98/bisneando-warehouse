@@ -1,7 +1,8 @@
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EditableImage } from "../_types";
-import { guessMimeFromUri, guessNameFromUri } from "../_utils/imageUtils";
+
+import { guessMimeFromUri, guessNameFromUri } from "@/utils";
+import { EditableImage } from "../types/product";
 
 type InitialForm = {
   nombre: string;

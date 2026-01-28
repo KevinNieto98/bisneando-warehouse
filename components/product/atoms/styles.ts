@@ -116,4 +116,109 @@ export const styles = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.7 },
 
   saveText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  // dentro de styles.ts
+actionsContainer: {
+  width: "100%",
+  marginVertical: 8,
+},
+
+counterContainer: {
+  width: "100%",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  backgroundColor: "#F3F4F6",
+  borderRadius: 14,
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+},
+
+counterDisabled: {
+  backgroundColor: "#E5E7EB",
+},
+
+counterButton: {
+  width: 42,
+  height: 42,
+  borderRadius: 21,
+  backgroundColor: "#FFFFFF",
+  borderWidth: 1,
+  borderColor: "#D1D5DB",
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+counterButtonDisabled: {
+  backgroundColor: "#F9FAFB",
+  borderColor: "#E5E7EB",
+},
+
+counterCenter: {
+  alignItems: "center",
+  justifyContent: "center",
+  flex: 1,
+},
+
+counterValue: {
+  fontSize: 20,
+  fontWeight: "800",
+  color: "#111827",
+},
+
+counterHint: {
+  fontSize: 12,
+  color: "#6B7280",
+  marginTop: 2,
+},
+
+disabledText: {
+  marginTop: 6,
+  fontSize: 12,
+  color: "#DC2626",
+  textAlign: "center",
+  fontWeight: "600",
+},
+
+
+
+
+//////
+
+statusQtyRow: {
+  flexDirection: "row",
+  gap: 10,
+  marginBottom: 6,
+},
+
+statusBox: {
+  flex: 1,
+  
+  borderRadius: 12,
+  paddingHorizontal: 10,
+  paddingVertical: 8,        // 🔽 antes 12
+  justifyContent: "center",  // centra verticalmente
+},
+
+qtyBox: {
+  flex: 1,
+  borderRadius: 12,
+  paddingHorizontal: 10,
+  paddingVertical: 8,        // 🔽 antes 12
+},
+
+switchWrapper: {
+        // 🔽 antes 10
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "#FFFFFF",
+  borderRadius: 999,
+  paddingVertical: 2,        // 🔽 antes 6
+  paddingHorizontal: 10,     // 🔽 antes 14
+  shadowColor: "#000",
+  shadowOpacity: 0.04,
+  shadowRadius: 2,
+  elevation: 1,
+},
+
+
 });
