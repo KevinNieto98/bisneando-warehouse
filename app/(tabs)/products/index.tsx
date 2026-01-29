@@ -119,7 +119,8 @@ export default function ExploreScreen() {
       setDataError(false);
 
       const data = await fetchProductosDestacados(bodegaId);
-
+      console.log('data:',data);
+      
       const mapped: Product[] = (Array.isArray(data) ? data : []).map(
         (prod: any) => ({
           id: Number(prod.id_producto),
